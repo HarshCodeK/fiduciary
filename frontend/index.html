@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fiduciary — customer transparency</title>
+<style>
+  :root { --bg:#0b0f14; --card:#121822; --accent:#3b82f6; --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; --text:#e5e7eb; --muted:#6b7280; --border:#1f2937; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px}
+  h1{font-size:20px;letter-spacing:.5px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px 0}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:8px}
+  .badge.live{background:#052e16;color:var(--ok);border:1px solid #14532d}
+  .order{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .status{font-weight:600}
+  .captured{color:var(--ok)} .created{color:var(--warn)}
+  .audit{max-height:340px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.6}
+  .audit .ev{border-bottom:1px solid var(--border);padding:6px 0}
+  .ok{color:var(--ok)} .reject{color:var(--bad)}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+  #verify{font-variant-numeric:tabular-nums}
+  .rescued{color:var(--ok);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fiduciary <span class="badge live" id="mode">…</span> <span style="font-size:13px;color:var(--muted);font-weight:400">— customer transparency panel</span></h1>
+  <div class="grid">
+    <div class="card"><h2>Order timeline (live)</h2><div id="orders">loading…</div></div>
+    <div class="card"><h2>Audit trail <button onclick="verifyChain()" style="float:right">Verify chain</button></h2>
+      <div id="verify" style="font-size:12px;margin-bottom:8px;color:var(--muted)">press “Verify chain” to recompute every hash</div>
+      <div class="audit" id="audit">loading…</div>
+    </div>
+  </div>
+</div>
+<script>
+const BASE="http://127.0.0.1:4100";
+const rs=p=>"₹"+(p/100).toLocaleString("en-IN");
+
+async function loadOrders(){
+  // demo: we track known order states from audit log events
+  const a = await (await fetch(BASE+"/api/audit?limit=100")).json();
+  const orders = {};
+  for (const e of a.reverse()) {
+    const p = JSON.parse(e.payload_json);
+    if (p.order_id) orders[p.order_id] = orders[p.order_id] || { events: [] }, orders[p.order_id].events.push(e);
+  }
+  const el = document.getElementById("orders");
+  const ids = Object.keys(orders);
+  if (!ids.length) { el.textContent = "No orders yet — run the demo."; return; }
+  el.innerHTML = ids.map(id=>{
+    const status = (orders[id].events.some(e=>e.event_type==="payment_captured")) ? "captured" : "created";
+    const amt = (orders[id].events.find(e=>JSON.parse(e.payload_json).amount)||{});
+    const amtP = amt ? JSON.parse(amt.payload_json).amount : null;
+    return `<div class="order"><span>${id}</span><span>${amtP?rs(amtP):""} <span class="status ${status}">${status.toUpperCase()}</span></span></div>`;
+  }).join("");
+}
+
+async function loadAudit(){
+  const a = await (await fetch(BASE+"/api/audit?limit=60")).json();
+  document.getElementById("audit").innerHTML = a.map(e=>{
+    const bad = e.event_type.includes("rejected")||e.event_type.includes("violation");
+    return `<div class="ev"><span style="color:var(--muted)">#${e.seq}</span> <span class="${bad?'reject':'ok'}">${e.event_type}</span> <span style="color:var(--muted)">${new Date(e.created_at).toLocaleTimeString()}</span><br><span style="color:#9ca3af">${e.payload_json.slice(0,140)}</span></div>`;
+  }).join("");
+}
+
+async function verifyChain(){
+  const r = await (await fetch(BASE+"/api/audit/verify")).json();
+  document.getElementById("verify").innerHTML = r.ok
+    ? `<span style="color:var(--ok)">✓ Chain INTACT — every event's hash matches its predecessor. Nothing has been altered.</span>`
+    : `<span style="color:var(--bad)">✗ Chain BROKEN at event #${r.brokenAt} (${r.reason}) — the log has been tampered with.</span>`;
+}
+
+(async ()=>{
+  const h = await (await fetch(BASE+"/health")).json();
+  document.getElementById("mode").textContent = h.live ? "LIVE Razorpay test mode" : "SIMULATED";
+  document.getElementById("mode").className = "badge " + (h.live ? "live" : "");
+  setInterval(()=>{ loadOrders(); loadAudit(); }, 2000);
+  loadOrders(); loadAudit();
+})();
+</script>
+</body>
+</html>
