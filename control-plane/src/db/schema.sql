@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS products (
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   price_paise INTEGER NOT NULL,
-  stock_qty REAL NOT NULL DEFAULT 0
+  stock_qty REAL NOT NULL DEFAULT 0,
+  supplier TEXT NOT NULL DEFAULT 'FiduciaryDirect',  -- who we buy from on restock
+  supplier_price_paise INTEGER                      -- wholesale price from that supplier
 );
 
 CREATE TABLE IF NOT EXISTS offers (

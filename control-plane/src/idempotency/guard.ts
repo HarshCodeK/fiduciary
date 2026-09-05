@@ -20,9 +20,10 @@ export interface GuardResult {
 export class IdempotencyGuard {
   constructor(private db: Database.Database) {}
 
-  deriveKey(action: string, orderIntent: { product_id: string; budget_paise: number }): string {
+  deriveKey(action: string, orderIntent: { product_id: string; budget_paise: number; tag?: string }): string {
     // Deterministic: same logical intent → same key, no matter how the LLM phrases it.
-    return `idem:${action}:${orderIntent.product_id}:${orderIntent.budget_paise}`;
+    const tag = orderIntent.tag ? `:${orderIntent.tag}` : "";
+    return `idem:${action}:${orderIntent.product_id}:${orderIntent.budget_paise}${tag}`;
   }
 
   check(key: string, params: Record<string, unknown>): GuardResult {

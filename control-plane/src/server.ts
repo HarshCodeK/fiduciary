@@ -54,6 +54,7 @@ app.get("/health", async () => ({ ok: true, live: !!process.env.RAZORPAY_KEY_ID 
 app.post("/api/agent/message", async (req) => ({ reply: await agent.run((req.body as { message: string }).message) }));
 app.post("/api/agent/search", async (req) => c.searchCatalog((req.body as { query: string }).query));
 app.post("/api/agent/propose", async (req) => c.proposePurchase(req.body as { product_id: string; budget_paise: number; quantity?: number }));
+app.post("/api/agent/basket", async (req) => c.proposeBasket(req.body as any));
 app.post("/api/agent/request-consent", async (req) => c.requestConsent(req.body as { order_id: string }));
 app.post("/api/agent/capture", async (req) => c.capture(req.body as any));
 app.get("/api/agent/order/:id", async (req) => c.orderStatus((req.params as { id: string }).id));

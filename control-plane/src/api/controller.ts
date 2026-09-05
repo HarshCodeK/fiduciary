@@ -8,6 +8,7 @@ import { AuditLog } from "../audit/log";
 import { ReceiptService } from "../audit/receipt";
 import { EventBus } from "../events/bus";
 import { DemandForecast } from "../forecast/forecast";
+import { splitBySupplier } from "../razorpay/suppliers";
 import * as rzp from "../razorpay/client";
 
 const HIGH_VALUE_THRESHOLD = Number(process.env.HIGH_VALUE_THRESHOLD_PAISE ?? 200000);
@@ -34,7 +35,65 @@ export function createController(db: Database.Database) {
       return rows;
     },
 
-    /** Phase-1 DoD hook: agent proposes a purchase. Control plane gates everything. */
+    /** MULTI-ITEM ORDER — the agent's real customer-facing path.
+        Buys a basket across suppliers in ONE order, then splits payout via SupplierSplit. */
+    proposeBasket: async (input: { items: Array<{ product_id: string; qty: number }>; budget_paise: number; idempotency_tag?: string }) => {
+      if (!input.items?.length) return { error: "empty_basket" };
+      // resolve retail price per item with offer resolution
+      let retail = 0, wholesale = 0;
+      const lines: Array<{ product_id: string; name: string; qty: number; retail_paise: number; sticker_paise: number; applied_offer: string | null }> = [];
+      for (const it of input.items) {
+        const prod = db.prepare("SELECT * FROM products WHERE product_id=?").get(it.product_id) as any;
+        if (!prod) return { error: `product_not_found: ${it.product_id}` };
+        const eff = pricing.evaluate(it.product_id, prod.price_paise * it.qty);
+        if ("error" in eff) return { error: eff.error };
+        const retailLine = eff.effective_paise * it.qty;   // effective is PER-UNIT; scale by qty
+        const wholesaleLine = (prod.supplier_price_paise ?? prod.price_paise) * it.qty;
+        retail += retailLine; wholesale += wholesaleLine;
+        lines.push({ product_id: it.product_id, name: prod.name, qty: it.qty, retail_paise: retailLine, sticker_paise: prod.price_paise * it.qty, applied_offer: eff.applied_offers[0] ?? null });
+      }
+      if (retail > input.budget_paise) {
+        audit.append({ event_type: "basket_rejected", payload: { total: retail, budget: input.budget_paise, reason: "over_budget" } });
+        return { rejected: true, reason: "over_budget", total_paise: retail, budget_paise: input.budget_paise };
+      }
+
+      const tag = input.idempotency_tag ?? Math.random().toString(36).slice(2);
+      const intent = { product_id: "basket", budget_paise: input.budget_paise };
+      const key = idem.deriveKey("create_basket", { ...intent, tag });
+      const params = { ...intent, tag, retail_paise: retail, items: input.items };
+      const guard = idem.check(key, params);
+      if (guard.action === "replay") {
+        audit.append({ event_type: "basket_replay", payload: { key } });
+        return { replayed: true, response: guard.cachedResponse, idempotency_key: key };
+      }
+      if (guard.action === "reject") {
+        audit.append({ event_type: "basket_violation", payload: guard.rejection ?? {} });
+        return { rejected: true, reason: guard.rejection, idempotency_key: key };
+      }
+
+      idem.begin(key, params);
+      try {
+        const order = await rzp.createOrder(retail, `basket-${tag}`.slice(0, 40));
+        // record order (basket is one logical order; product_id="basket:<tag>" for trace, split on suppliers)
+        db.prepare(
+          "INSERT INTO orders (order_id, product_id, quantity, status, amount_paise, sticker_price_paise, effective_price_paise, budget_paise, rescued, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        ).run(order.id, `basket:${tag}`, 1, "created", retail, retail, retail, input.budget_paise, wholesale < retail ? 1 : 0, Date.now(), Date.now());
+
+        // Split across suppliers — the Razorpay Route pattern
+        const split = splitBySupplier(db, input.items);
+        audit.append({ event_type: "basket_created", payload: { order_id: order.id, total: retail, split: split.map(s => ({ supplier: s.supplier, share: s.total_paise })), saved_vs_retail: retail - wholesale } });
+
+        const response = { order_id: order.id, total_paise: retail, wholesale_cost_paise: wholesale, margin_saved_paise: retail - wholesale, suppliers: split, live: rzp.isLive(), _key: key };
+        idem.complete(key, response);
+        return response;
+      } catch (e) {
+        idem.fail(key);
+        audit.append({ event_type: "basket_failed", payload: { key, error: String(e) } });
+        return { rejected: true, reason: "razorpay_error", detail: String(e) };
+      }
+    },
+
+    /** Existing single-item propose kept for the agent's simpler calls — too many tool paths = LLM confusion */
     proposePurchase: async (input: { product_id: string; budget_paise: number; quantity?: number }) => {
       const quantity = input.quantity ?? 1;
       const price = pricing.evaluate(input.product_id, input.budget_paise);

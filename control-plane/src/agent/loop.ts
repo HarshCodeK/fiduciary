@@ -90,6 +90,28 @@ const TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "place_basket",
+      description: "Buy MULTIPLE items in one order, split across suppliers (Razorpay Route-style payout). Use THIS when the basket is 2+ distinct products — never call place_order multiple times in a row for a basket. Returns supplier split per supplier share.",
+      parameters: {
+        type: "object",
+        properties: {
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { product_id: { type: "string" }, qty: { type: "integer" } },
+              required: ["product_id", "qty"],
+            },
+          },
+          budget_paise: { type: "integer" },
+        },
+        required: ["items", "budget_paise"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "request_merchant_approval",
       description: "Ask the human merchant to approve a spend. Provide a short, honest reason. Blocks (returns pending) — the merchant will approve or reject in their dashboard.",
       parameters: {
@@ -180,6 +202,8 @@ export class AgentLoop {
         return c.evaluateDeal(args.product_id, args.budget_paise);
       case "place_order":
         return await c.proposePurchase({ product_id: args.product_id, budget_paise: args.budget_paise, quantity: args.quantity });
+      case "place_basket":
+        return await c.proposeBasket({ items: args.items ?? [], budget_paise: args.budget_paise });
       case "request_merchant_approval":
         return await c.askMerchantApproval({ order_id: args.order_id, amount_paise: args.amount_paise, reason: args.reason });
       case "finalize_order":

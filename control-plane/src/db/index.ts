@@ -21,27 +21,28 @@ export function seedCatalog(db: Database.Database): void {
   const count = (db.prepare("SELECT COUNT(*) as n FROM products").get() as { n: number }).n;
   if (count > 0) return;
   const insert = db.prepare(
-    "INSERT INTO products (product_id, name, category, price_paise, stock_qty) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO products (product_id, name, category, price_paise, stock_qty, supplier, supplier_price_paise) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
-const products: Array<[string, string, string, number, number]> = [
-    ["p_apples", "Apples — Shimla (per kg)", "groceries", 24000, 20],
-    ["p_bananas", "Bananas — Robusta (dozen)", "groceries", 4500, 40],
-    ["p_milk", "Milk — Amul Taaza (litre)", "dairy", 6600, 38],
-    ["p_bread", "Bread — White Sandwich (400g)", "bakery", 4500, 12],
-    ["p_eggs", "Eggs — Desi (tray of 30)", "dairy", 22500, 6],
-    ["p_atta", "Atta — Aashirvaad Shudh 5kg", "groceries", 23500, 14],
-    ["p_rice", "Rice — Basmati (5 kg)", "groceries", 69500, 9],
-    ["p_dal", "Dal — Arhar (1 kg)", "groceries", 14500, 18],
-    ["p_sugar", "Sugar — Refined (1 kg)", "groceries", 4800, 22],
-    ["p_tea", "Tea — Tata Gold 500g", "beverages", 28000, 7],
-    ["p_onions", "Onions — Nashik (per kg)", "groceries", 3500, 25],
-    ["p_potatoes", "Potatoes — Local (per kg)", "groceries", 2800, 30],
-    ["p_oil", "Sunflower Oil — Fortune 1L", "groceries", 15500, 11],
-    ["p_flour", "Maida — 1kg", "groceries", 5200, 15],
-    ["p_soap", "Soap — Lux 100g", "personal_care", 3800, 30],
-    ["p_toothpaste", "Toothpaste — Colgate Strong 150g", "personal_care", 9500, 8],
-    ["p_headphones_pro", "Sony WH-1000XM5 Wireless Headphones", "electronics", 600000, 3],
-    ["p_keyboards", "Keychron K2 Mechanical Keyboard", "electronics", 850000, 4],
+  // [id, name, category, retail_paise, stock, supplier, wholesale_paise]
+  const products: Array<[string, string, string, number, number, string, number]> = [
+    ["p_apples", "Apples — Shimla (per kg)", "groceries", 24000, 20, "freshmandi", 16000],
+    ["p_bananas", "Bananas — Robusta (dozen)", "groceries", 4500, 40, "freshmandi", 3000],
+    ["p_milk", "Milk — Amul Taaza (litre)", "dairy", 6600, 38, "metromart", 5000],
+    ["p_bread", "Bread — White Sandwich (400g)", "bakery", 4500, 12, "metromart", 3000],
+    ["p_eggs", "Eggs — Desi (tray of 30)", "dairy", 22500, 6, "freshmandi", 18000],
+    ["p_atta", "Atta — Aashirvaad Shudh 5kg", "groceries", 23500, 14, "valuetraders", 18000],
+    ["p_rice", "Rice — Basmati (5 kg)", "groceries", 69500, 9, "valuetraders", 52000],
+    ["p_dal", "Dal — Arhar (1 kg)", "groceries", 14500, 18, "valuetraders", 11000],
+    ["p_sugar", "Sugar — Refined (1 kg)", "groceries", 4800, 22, "valuetraders", 3600],
+    ["p_tea", "Tea — Tata Gold 500g", "beverages", 28000, 7, "valuetraders", 18000],
+    ["p_onions", "Onions — Nashik (per kg)", "groceries", 3500, 25, "freshmandi", 2200],
+    ["p_potatoes", "Potatoes — Local (per kg)", "groceries", 2800, 30, "freshmandi", 1800],
+    ["p_oil", "Sunflower Oil — Fortune 1L", "groceries", 15500, 11, "valuetraders", 11500],
+    ["p_flour", "Maida — 1kg", "groceries", 5200, 15, "valuetraders", 3800],
+    ["p_soap", "Soap — Lux 100g", "personal_care", 3800, 30, "metromart", 2600],
+    ["p_toothpaste", "Toothpaste — Colgate Strong 150g", "personal_care", 9500, 8, "metromart", 7000],
+    ["p_headphones_pro", "Sony WH-1000XM5 Wireless Headphones", "electronics", 600000, 3, "metromart", 480000],
+    ["p_keyboards", "Keychron K2 Mechanical Keyboard", "electronics", 850000, 4, "metromart", 650000],
   ];
   const tx = db.transaction(() => products.forEach((p) => insert.run(...p)));
   tx();
