@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS consent_tokens (
 CREATE TABLE IF NOT EXISTS orders (
   order_id TEXT PRIMARY KEY,          -- Razorpay order_* id
   product_id TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 1,
   status TEXT NOT NULL,               -- created | authorized | captured | settled | refunded | failed
   amount_paise INTEGER NOT NULL,      -- amount actually paid (effective price)
   sticker_price_paise INTEGER NOT NULL,

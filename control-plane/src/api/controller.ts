@@ -65,8 +65,8 @@ export function createController(db: Database.Database) {
       try {
         const order = await rzp.createOrder(price.effective_paise * quantity, `fid-${key.slice(-20)}`);
         db.prepare(
-          "INSERT INTO orders (order_id, product_id, status, amount_paise, sticker_price_paise, effective_price_paise, budget_paise, rescued, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
-        ).run(order.id, input.product_id, "created", price.effective_paise * quantity, price.sticker_paise * quantity, price.effective_paise, input.budget_paise, price.rescued ? 1 : 0, Date.now(), Date.now());
+          "INSERT INTO orders (order_id, product_id, quantity, status, amount_paise, sticker_price_paise, effective_price_paise, budget_paise, rescued, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        ).run(order.id, input.product_id, quantity, "created", price.effective_paise * quantity, price.sticker_paise * quantity, price.effective_paise, input.budget_paise, price.rescued ? 1 : 0, Date.now(), Date.now());
         audit.append({
           event_type: "order_created",
           payload: { order_id: order.id, amount: price.effective_paise * quantity, rescued: price.rescued, live: rzp.isLive(), applied_offers: price.applied_offers },
@@ -199,8 +199,14 @@ export function createController(db: Database.Database) {
       }
       const result = await ctrl.capture({ order_id: orderId });
       if (result.captured) {
-        db.prepare("UPDATE products SET stock_qty = stock_qty - 1 WHERE product_id=(SELECT product_id FROM orders WHERE order_id=?)").run(orderId);
-        bus.push("capture", `Captured ${rupees(order.amount_paise)} for ${order.order_id} — stock updated, receipt issued`);
+        // Bought goods arrive → stock goes UP, not down
+        const qtyMatch = (db.prepare("SELECT product_id FROM orders WHERE order_id=?").get(orderId) as any);
+        const prodId = qtyMatch?.product_id;
+        const ordQtyRow = db.prepare("SELECT quantity FROM orders WHERE order_id=?").get(orderId) as any;
+        if (prodId) {
+          db.prepare("UPDATE products SET stock_qty = stock_qty + ? WHERE product_id=?").run(ordQtyRow?.quantity ?? 1, prodId);
+        }
+        bus.push("capture", `Captured ${rupees(order.amount_paise)} for ${order.order_id} — goods received, stock updated, receipt issued`);
       }
       return result;
     },
