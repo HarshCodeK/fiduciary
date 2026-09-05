@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fiduciary — the AI that spends your money like it's its own</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0c10;--ink:#f2f0ea;--mut:#8a8f98;--line:#232733;
+  --card:#12141a;--card2:#16181f;
+  --safe:#2dd4a7;--blocked:#ff5c6c;--waiting:#ffc24b;--accent:#7b8cff;--gold:#f0c86e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow-x:hidden}
+.serif{font-family:Fraunces,serif}
+/* ---------- HERO ---------- */
+.hero{padding:28px 40px 20px;display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line)}
+.logo{font-family:Fraunces,serif;font-size:34px;font-weight:600;letter-spacing:-1px}
+.logo em{font-style:italic;color:var(--gold)}
+.tag{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--mut)}
+.mode-pill{font-size:11px;padding:5px 12px;border-radius:99px;letter-spacing:1px;text-transform:uppercase}
+.mode-live{background:rgba(45,212,167,.12);color:var(--safe);border:1px solid rgba(45,212,167,.3)}
+.mode-sim{background:rgba(255,194,75,.12);color:var(--waiting);border:1px solid rgba(255,194,75,.3)}
+/* ---------- GUARD STRIP ---------- */
+.guard{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.gcell{background:var(--bg);padding:18px 24px}
+.gnum{font-family:Fraunces,serif;font-size:40px;font-weight:600;line-height:1}
+.glab{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px}
+.gsafe .gnum{color:var(--safe)} .gblocked .gnum{color:var(--blocked)} .grescued .gnum{color:var(--gold)} .gwaiting .gnum{color:var(--waiting)}
+/* ---------- MAIN ---------- */
+.main{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;padding:22px 40px 32px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
+.ph{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--mut);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+/* chat */
+.chatbox{display:flex;gap:10px;margin-bottom:16px}
+.chatbox input{flex:1;background:#0e1116;border:1px solid var(--line);border-radius:10px;padding:13px 16px;color:var(--ink);font-size:14.5px;outline:none;transition:border .2s}
+.chatbox input:focus{border-color:var(--accent)}
+.send{background:var(--accent);color:#0b0c10;font-weight:700;padding:0 22px;border-radius:10px;border:0;cursor:pointer;font-size:14px}
+.feed{max-height:54vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin}
+.msg{max-width:88%;padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.55;animation:rise .3s ease}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.msg.user{align-self:flex-end;background:#1c2438;border:1px solid #2a3450}
+.msg.agent{background:var(--card2);border:1px solid var(--line)}
+.msg.gate{background:transparent;border:1px dashed var(--line);color:var(--mut);font-size:12.5px;align-self:stretch;max-width:100%}
+.gate .verdict{font-weight:700;letter-spacing:.5px;margin-right:8px}
+.gate.pass .verdict{color:var(--safe)} .gate.fail .verdict{color:var(--blocked)} .gate.wait .verdict{color:var(--waiting)}
+.msg.rescue{border:1px solid rgba(240,200,110,.35);background:linear-gradient(180deg,rgba(240,200,110,.06),transparent)}
+.msg.rescue .rescue-tag{color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase}
+/* consent card in-chat */
+.approval{align-self:stretch;background:linear-gradient(135deg,rgba(255,194,75,.09),rgba(255,194,75,.02));border:1px solid rgba(255,194,75,.4);border-radius:14px;padding:16px;animation:pulse 1.6s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(255,194,75,.05)}}
+.approval .amt{font-family:Fraunces,serif;font-size:26px;color:var(--waiting)}
+.approval p{font-size:13px;color:var(--ink);margin:6px 0 12px}
+.approval .btns{display:flex;gap:10px}
+.btn{padding:9px 18px;border-radius:9px;border:0;font-weight:600;font-size:13px;cursor:pointer}
+.btn-yes{background:var(--safe);color:#06251c}.btn-no{background:transparent;color:var(--blocked);border:1px solid var(--blocked)}
+.approval.decided{animation:none;opacity:.75}
+/* ---------- RIGHT COLUMN ---------- */
+.side{display:flex;flex-direction:column;gap:16px}
+/* chain */
+.chain-graph{margin:6px 0 4px}
+.block{display:flex;align-items:center;gap:10px;padding:7px 10px;background:#0e1116;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:12.5px;transition:all .25s}
+.block .h{font-family:monospace;font-size:10px;color:var(--mut)}
+.block .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.block.status-ok{border-left:3px solid var(--safe)}
+.block.status-bad{border-left:3px solid var(--blocked);background:#1b1013}
+.block.status-wait{border-left:3px solid var(--waiting)}
+#sealbtn{font-size:12px}
+#seal{font-size:12.5px;margin-top:6px}
+#seal.ok{color:var(--safe)} #seal.bad{color:var(--blocked)}
+/* tamper */
+.tamper-btn{background:transparent;border:1px dashed var(--blocked);color:var(--blocked);font-size:11.5px;padding:6px 12px;border-radius:8px;cursor:pointer}
+.tamper-btn:hover{background:rgba(255,92,108,.08)}
+/* inventory */
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);color:var(--ink)}
+td.num,th.num{text-align:right}
+.low td{color:var(--blocked)}
+.stockbar{height:4px;border-radius:99px;background:var(--line);width:70px;margin-top:3px}
+.stockbar i{display:block;height:100%;border-radius:99px;background:var(--safe)}
+.low .stockbar i{background:var(--blocked)}
+/* receipt */
+.receipt{background:#fdfdf8;color:#1a1a1a;border-radius:10px;padding:14px;font-size:12.5px;font-family:'Courier New',monospace;position:relative;overflow:hidden}
+.receipt:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.025) 3px 4px);pointer-events:none}
+.receipt .rhead{font-family:Fraunces,serif;font-size:15px;font-weight:600;display:flex;justify-content:space-between;border-bottom:1px dashed #999;padding-bottom:6px;margin-bottom:6px}
+.receipt .sig{font-size:10px;color:#666;word-break:break-all;margin-top:6px}
+.receipt .verified{color:#0a7a4d;font-weight:700}
+.receipt.hidden{display:none}
+/* scenario buttons */
+.demo-row{display:flex;gap:8px;flex-wrap:wrap;padding:14px 40px 20px;border-top:1px solid var(--line)}
+.demo-btn{background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:12.5px;padding:8px 14px;border-radius:99px;cursor:pointer}
+.demo-btn:hover{border-color:var(--accent);color:#fff}
+.demo-btn b{color:var(--accent);margin-right:5px}
+.flash-red{animation:flashred 1s}
+@keyframes flashred{0%,100%{}50%{box-shadow:0 0 40px rgba(255,92,108,.5)}}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div>
+    <div class="logo">Fiduciary<span class="serif" style="color:var(--mut)">.</span><em>guard</em></div>
+    <div class="tag" style="margin-top:4px">the AI that spends your money like it's its own</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span class="mode-pill mode-live" id="mode">checking…</span>
+  </div>
+</header>
+
+<section class="guard">
+  <div class="gcell gsafe"><div class="gnum" id="n-safe">0</div><div class="glab">safe purchases</div></div>
+  <div class="gcell gblocked"><div class="gnum" id="n-blocked">0</div><div class="glab">attacks blocked</div></div>
+  <div class="gcell grescued"><div class="gnum" id="n-rescued">₹0</div><div class="glab">revenue rescued</div></div>
+  <div class="gcell gwaiting"><div class="gnum" id="n-waiting">0</div><div class="glab">awaiting you</div></div>
+</section>
+
+<main class="main">
+  <!-- LEFT: the agent -->
+  <section class="panel">
+    <div class="ph">Talk to your agent <span style="color:var(--safe);font-size:10px">● LIVE</span></div>
+    <div class="chatbox">
+      <input id="msg" placeholder='Try: "restock apples if below 20 kg, never auto-spend over ₹300"'/>
+      <button class="send" onclick="send()">Send</button>
+    </div>
+    <div id="feed" class="feed">
+      <div class="msg agent">I'm watching your stock. Tell me a rule in plain English and I'll enforce it — every purchase still passes through the guard gates first.</div>
+    </div>
+  </section>
+
+  <!-- RIGHT: proof -->
+  <div class="side">
+    <section class="panel">
+      <div class="ph">Proof nothing was altered <button class="tamper-btn" onclick="tamper()" title="Simulate an attacker editing the log">⚡ tamper test</button></div>
+      <div class="chain-graph" id="chain"></div>
+      <div id="seal">—</div>
+    </section>
+
+    <section class="panel">
+      <div class="ph">Latest signed receipt</div>
+      <div class="receipt" id="receipt"><span style="color:var(--mut)">A receipt appears here after a capture.</span></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph">Inventory</div>
+      <table><thead><tr><th>Item</th><th class="num">Price</th><th class="num">Stock</th></tr></thead><tbody id="inv"></tbody></table>
+    </section>
+  </div>
+</main>
+
+<footer class="demo-row" id="demorow"></footer>
+
+<script>
+let lastEv=0;
+const $=id=>document.getElementById(id);
+const rs=p=>"₹"+(p/100).toLocaleString("en-IN");
+async function j(u,o){const r=await fetch(u,o?{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}:undefined);return r.json()}
+
+function addMsg(cls,html){const f=$("feed");const d=document.createElement("div");d.className="msg "+cls;d.innerHTML=html;f.appendChild(d);f.scrollTop=f.scrollHeight;return d}
+function pushAgent(text){addMsg("agent",text)}
+function pushGate(kind,title,detail){
+  const cls=kind==="pass"?"pass":kind==="fail"?"fail":"wait";
+  const label=kind==="pass"?"PASSED":kind==="fail"?"BLOCKED":"WAITING";
+  addMsg("gate "+cls,`<span class="gate"><span class="verdict">${label}</span>${title}${detail?`<div style="margin-top:3px">${detail}</div>`:""}</span>`);
+}
+
+async function send(){
+  const el=$("msg");const t=el.value.trim();if(!t)return;el.value="";
+  addMsg("user",t);
+  addMsg("gate wait",`<span class="gate"><span class="verdict">THINKING</span>agent is reasoning (Groq)…</span>`);
+  const r=await j("/api/agent/message",{message:t});
+  pushAgent(r.reply);
+}
+
+async function decide(id,ok,el){
+  el.closest(".approval").classList.add("decided");
+  const r=await j("/api/consents/decide",{request_id:id,decision:ok?"approved":"rejected"});
+  pushGate(ok?"pass":"fail",`You ${ok?"approved":"rejected"} ${rs(r.amount_paise)}`,ok?"Consent token minted → capture executed → receipt issued.":"The order was cancelled before any money moved.");
+}
+
+async function renderConsent(c){
+  const el=addMsg("gate","");
+  el.outerHTML=`<div class="approval" id="appr-${c.request_id}">
+      <div class="amt">${rs(c.amount_paise)}</div>
+      <p>${c.reason}</p>
+      <div class="btns"><button class="btn btn-yes" onclick='decide("${c.request_id}",true,this)'>Approve</button>
+      <button class="btn btn-no" onclick='decide("${c.request_id}",false,this)'>Reject</button></div></div>`;
+}
+
+function block(ev){
+  const ok=!(/reject|violation|tamper|invalid/i.test(ev.text));
+  const wait=/consent_needed|awaiting/i.test(ev.text);
+  return `<div class="block ${ok?(wait?"status-wait":"status-ok"):"status-bad"}"><span class="h">#${ev.id}</span><span class="lbl">${ev.text}</span></div>`;
+}
+
+async function tamper(){
+  const r=await j("/api/demo/tamper",{});   // script flips one audit row
+  document.body.classList.add("flash-red");
+  setTimeout(()=>document.body.classList.remove("flash-red"),1100);
+  $("seal").className="bad";$("seal").innerHTML=`✗ CHAIN BROKEN at event #${r.brokenAt} — "${r.reason}". The guard just proved tampering is detectable.`;
+  renderChain(true);
+}
+
+async function renderChain(tampered){
+  const evs=await j("/api/events?since=0&limit=12");
+  $("chain").innerHTML=evs.slice(-8).map(block).join("");
+}
+
+async function verify(){
+  const r=await j("/api/audit/verify");
+  $("seal").className=r.ok?"ok":"bad";
+  $("seal").innerHTML=r.ok
+    ?"✓ Every block verified — nothing was altered."
+    :`✗ BROKEN at #${r.brokenAt} (${r.reason})`;
+}
+
+function receipt(r){
+  $("receipt").outerHTML?null:null;
+  const el=$("receipt");
+  el.classList.remove("hidden");
+  el.innerHTML=`<div class="rhead"><span>FIDUCIARY RECEIPT</span><span>${r.status}</span></div>
+    order&nbsp;&nbsp;&nbsp;${r.order_id}<br>amount&nbsp;&nbsp;${rs(r.amount_paise)}<br>time&nbsp;&nbsp;&nbsp;&nbsp;${new Date(r.issued_at).toLocaleString()}
+    <div class="sig">sig ${r.signature}</div>
+    <div class="verified">✓ human-approved · idempotent · on Razorpay test mode</div>`;
+}
+
+async function tick(){
+  const evs=await j("/api/events?since="+lastEv);
+  for(const e of evs){lastEv=Math.max(lastEv,e.id);
+    if(e.kind==="agent_thought"&&e.text.startsWith("Agent:"))pushAgent(e.text.slice(7));
+    else if(e.kind==="agent_thought"&&e.text.startsWith("You:"))addMsg("user",e.text.slice(5));
+    else if(e.kind==="gate_pass")pushGate("pass",e.text);
+    else if(e.kind==="gate_reject")pushGate("fail",e.text);
+    else if(e.kind==="consent_needed")pushGate("wait",e.text);
+    else if(e.kind==="capture"){pushGate("pass",e.text);const rec=await j("/api/receipts/latest");if(rec&&rec.signature)receipt(rec);}
+  }
+  const inv=await j("/api/inventory");
+  $("inv").innerHTML=inv.map(p=>{
+    const low=p.stock_qty<5;
+    const pct=Math.min(100,p.stock_qty*4);
+    return `<tr class="${low?"low":""}"><td>${p.name}<div class="stockbar"><i style="width:${pct}%"></i></div></td><td class="num">${rs(p.price_paise)}</td><td class="num">${p.stock_qty}</td></tr>`;
+  }).join("");
+  const st=await j("/api/stats");
+  $("n-safe").textContent=st.captured??0;
+  $("n-blocked").textContent=st.rejected??0;
+  $("n-rescued").textContent=rs(st.rescued_saved_paise??0);
+  const cs=await j("/api/consents/pending");
+  $("n-waiting").textContent=cs.length;
+  document.querySelectorAll(".approval:not(.decided)").forEach(()=>{});
+  for(const c of cs){ if(!document.getElementById("appr-"+c.request_id)) renderConsent(c); }
+}
+
+(async()=>{
+  const h=await j("/health");const m=$("mode");
+  m.textContent=h.live?"live · razorpay test mode":"simulated mode";
+  m.className="mode-pill "+(h.live?"mode-live":"mode-sim");
+  renderChain(false);verify();
+  // demo scenario buttons
+  const demos=[
+    ["1","Restock apples under ₹300/or","restock apples if below 20 kg — never auto-spend more than ₹300 per order"],
+    ["2","Try to buy the ₹6,000 headphone","check the Sony headphones — my budget is ₹5,000, buy if it fits"],
+    ["3","Same message twice (idempotency)","buy 1kg apples, budget ₹300",true],
+    ["4","Approve then capture","",false],
+    ["5","Tamper the ledger","__tamper__"],
+  ];
+  $("demorow").innerHTML="<span style='font-size:11px;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;align-self:center'>Demo:</span>"+demos.map(d=>`<button class="demo-btn" onclick="runDemo('${d[2]}')"><b>${d[0]}</b>${d[1]}</button>`).join("");
+  tick();setInterval(tick,1500);
+})();
+
+async function runDemo(text){
+  if(text==="__tamper__"){tamper();return}
+  if(!text){return}
+  $("msg").value=text;send();
+  if(text.startsWith("buy 1kg apples")){setTimeout(()=>{$("msg").value=text;send()},3000)} // fire twice → second must replay
+}
+</script>
+</body>
+</html>

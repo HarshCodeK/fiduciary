@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS products (
   product_id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   category TEXT NOT NULL,
-  price_paise INTEGER NOT NULL
+  price_paise INTEGER NOT NULL,
+  stock_qty REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS offers (
@@ -66,4 +67,35 @@ CREATE TABLE IF NOT EXISTS offers (
   value INTEGER NOT NULL,             -- percent (20 = 20%) or flat paise
   max_discount_paise INTEGER,         -- cap for percent offers
   active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS merchant_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_text TEXT NOT NULL,            -- natural language rule as the merchant typed it
+  category TEXT,
+  max_unit_price_paise INTEGER,
+  min_stock REAL,                     -- restock trigger
+  max_auto_spend_paise INTEGER,       -- per-transaction auto-approve cap (else consent)
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS consent_requests (
+  request_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,               -- pending | approved | rejected
+  action TEXT NOT NULL,
+  amount_paise INTEGER NOT NULL,
+  order_id TEXT,
+  reason TEXT NOT NULL,               -- agent's explanation shown to merchant
+  token_id TEXT,
+  signature TEXT,
+  created_at INTEGER NOT NULL,
+  decided_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,                 -- agent_thought | gate_pass | gate_reject | consent_needed | order | capture | info
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
 );

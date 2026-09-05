@@ -1,10 +1,12 @@
 import Database from "better-sqlite3";
 import { IdempotencyGuard } from "../idempotency/guard";
 import { ConsentService } from "../consent/service";
+import { ConsentInbox } from "../consent/inbox";
 import { PricingEngine } from "../pricing/effective-price";
 import { PurchaseMemory } from "../memory/purchase-memory";
 import { AuditLog } from "../audit/log";
 import { ReceiptService } from "../audit/receipt";
+import { EventBus } from "../events/bus";
 import * as rzp from "../razorpay/client";
 
 const HIGH_VALUE_THRESHOLD = Number(process.env.HIGH_VALUE_THRESHOLD_PAISE ?? 200000);
@@ -12,12 +14,16 @@ const HIGH_VALUE_THRESHOLD = Number(process.env.HIGH_VALUE_THRESHOLD_PAISE ?? 20
 export function createController(db: Database.Database) {
   const idem = new IdempotencyGuard(db);
   const consent = new ConsentService(db, process.env.CONSENT_TOKEN_SECRET ?? "");
+  const inbox = new ConsentInbox(db, consent);
   const pricing = new PricingEngine(db);
   const memory = new PurchaseMemory(db);
   const audit = new AuditLog(db);
   const receipts = new ReceiptService(process.env.CONSENT_TOKEN_SECRET ?? "");
+  const bus = new EventBus(db);
 
-  return {
+  const rupees = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
+
+  const ctrl = {
     searchCatalog: async (query: string) => {
       const rows = db
         .prepare("SELECT product_id, name, category, price_paise FROM products WHERE lower(name) LIKE ? LIMIT 10")
@@ -123,11 +129,81 @@ export function createController(db: Database.Database) {
         order.amount_paise
       );
       const receipt = receipts.issue(order.order_id, order.amount_paise, "captured");
+      db.prepare("INSERT INTO events (kind, text, created_at) VALUES ('receipt', ?, ?)").run(JSON.stringify(receipt), Date.now());
       audit.append({ event_type: "payment_captured", payload: { order_id: order.order_id, amount: order.amount_paise, live: rzp.isLive() } });
       return { captured: true, order_id: order.order_id, amount_paise: order.amount_paise, receipt, live: rzp.isLive() };
     },
 
     orderStatus: async (orderId: string) => db.prepare("SELECT * FROM orders WHERE order_id=?").get(orderId),
+
+    // ---- Product-SaaS layer ----
+    listInventory: async () => db.prepare("SELECT product_id, name, category, price_paise, stock_qty FROM products ORDER BY stock_qty ASC").all(),
+
+    evaluateDeal: async (productId: string, budgetPaise: number) => pricing.evaluate(productId, budgetPaise),
+
+    /** Merchant rules CRUD */
+    addRule: async (rule: { rule_text: string; category?: string; max_unit_price_paise?: number; min_stock?: number; max_auto_spend_paise?: number }) => {
+      const res = db.prepare(
+        "INSERT INTO merchant_rules (rule_text, category, max_unit_price_paise, min_stock, max_auto_spend_paise, active, created_at) VALUES (?,?,?,?,?,1,?)"
+      ).run(rule.rule_text, rule.category ?? null, rule.max_unit_price_paise ?? null, rule.min_stock ?? null, rule.max_auto_spend_paise ?? null, Date.now());
+      audit.append({ event_type: "merchant_rule_added", payload: rule as unknown as Record<string, unknown> });
+      return { id: res.lastInsertRowid, ...rule };
+    },
+    listRules: async () => db.prepare("SELECT * FROM merchant_rules WHERE active=1 ORDER BY id ASC").all(),
+
+    /** Events feed for dashboard */
+    eventsSince: async (id: number) => bus.since(id),
+
+    /** Agent asks merchant for approval — creates inbox entry the dashboard renders */
+    askMerchantApproval: async (input: { order_id: string; amount_paise: number; reason: string }) => {
+      const req = await inbox.requestApproval({ action: "capture_payment", amount_paise: input.amount_paise, order_id: input.order_id, reason: input.reason });
+      bus.push("consent_needed", `${rupees(input.amount_paise)} — ${input.reason}`);
+      audit.append({ event_type: "consent_requested", payload: { request_id: req.request_id, amount: input.amount_paise, reason: input.reason } });
+      return { status: "pending", request_id: req.request_id };
+    },
+
+    /** Merchant dashboard: approve/reject a pending request */
+    decideConsent: async (request_id: string, decision: "approved" | "rejected") => {
+      const r = inbox.decide(request_id, decision === "approved", "merchant_owner");
+      if (decision === "approved" && r.status === "approved" && r.order_id) {
+        const result = await ctrl.capture({ order_id: r.order_id, consent: { token_id: r.token_id!, signature: r.signature! } });
+        bus.push(result.captured ? "gate_pass" : "gate_reject", `${decision.toUpperCase()}: capture of ${r.order_id} → ${JSON.stringify(result).slice(0, 160)}`);
+        return { ...r, capture_result: result };
+      }
+      bus.push(decision === "approved" ? "gate_pass" : "gate_reject", `Merchant ${decision} request ${request_id}`);
+      audit.append({ event_type: `consent_${decision}`, payload: { request_id } });
+      return r;
+    },
+
+    /** Latest issued receipt for the dashboard.
+        We store each receipt in events so the UI can fetch the most recent one. */
+    latestReceipt: async () => {
+      const row = db.prepare("SELECT text FROM events WHERE kind='receipt' ORDER BY id DESC LIMIT 1").get() as { text: string } | undefined;
+      return row ? JSON.parse(row.text) : null;
+    },
+
+    pendingConsents: async () => inbox.pending(),
+
+    /** Finalize a created order: capture if under threshold or with consent, log memory, decrement stock */
+    finalize: async (orderId: string) => {
+      const order = db.prepare("SELECT * FROM orders WHERE order_id=?").get(orderId) as any;
+      if (!order) return { error: "order_not_found" };
+      if (order.status === "captured") return { already: "captured", order_id: orderId };
+
+      if (order.amount_paise >= HIGH_VALUE_THRESHOLD) {
+        // find pending consent request for this order
+        const pending = db.prepare("SELECT * FROM consent_requests WHERE order_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1").get(orderId) as any;
+        if (pending) return { awaiting_merchant: true, request_id: pending.request_id };
+        // if merchant already approved earlier (inbox), the token is used; else must go through askMerchantApproval
+        return { error: "consent_required", order_id: orderId, amount_paise: order.amount_paise, threshold: HIGH_VALUE_THRESHOLD };
+      }
+      const result = await ctrl.capture({ order_id: orderId });
+      if (result.captured) {
+        db.prepare("UPDATE products SET stock_qty = stock_qty - 1 WHERE product_id=(SELECT product_id FROM orders WHERE order_id=?)").run(orderId);
+        bus.push("capture", `Captured ${rupees(order.amount_paise)} for ${order.order_id} — stock updated, receipt issued`);
+      }
+      return result;
+    },
 
     auditRecent: async (limit = 30) => audit.recent(limit),
     auditVerify: async () => audit.verifyChain(),
@@ -135,6 +211,8 @@ export function createController(db: Database.Database) {
 
     replenishSuggest: async (category: string) => memory.suggestReplenishment(category),
   };
+
+  return ctrl;
 }
 
 export type Controller = ReturnType<typeof createController>;

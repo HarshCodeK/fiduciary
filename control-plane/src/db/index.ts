@@ -2,9 +2,9 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 
-const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..");
 const DB_PATH = path.join(PROJECT_ROOT, "fiduciary.db");
-const SCHEMA_PATH = path.resolve(PROJECT_ROOT, "src", "db", "schema.sql");
+const SCHEMA_PATH = path.resolve(PROJECT_ROOT, "control-plane", "src", "db", "schema.sql");
 
 export function openDb(dbPath: string = DB_PATH): Database.Database {
   const db = new Database(dbPath);
@@ -21,16 +21,16 @@ export function seedCatalog(db: Database.Database): void {
   const count = (db.prepare("SELECT COUNT(*) as n FROM products").get() as { n: number }).n;
   if (count > 0) return;
   const insert = db.prepare(
-    "INSERT INTO products (product_id, name, category, price_paise) VALUES (?, ?, ?, ?)"
+    "INSERT INTO products (product_id, name, category, price_paise, stock_qty) VALUES (?, ?, ?, ?, ?)"
   );
-  const products: Array<[string, string, string, number]> = [
-    ["p_headphones_pro", "Sony WH-1000XM5 Wireless Headphones", "electronics", 600000], // ₹6000 — the demo piece
-    ["p_headphones_basic", "boAt Rockerz 450", "electronics", 149900],
-    ["p_mouse", "Logitech M331 Silent Mouse", "electronics", 79900],
-    ["p_keyboard", "Keychron K2 Mechanical Keyboard", "electronics", 850000],
-    ["p_apples", "Fresh Shimla Apples (1kg)", "groceries", 24000],
-    ["p_rice", "India Gate Basmati Rice 5kg", "groceries", 69500],
-    ["p_milk", "Amul Taaza Milk 1L", "groceries", 6600],
+  const products: Array<[string, string, string, number, number]> = [
+    ["p_headphones_pro", "Sony WH-1000XM5 Wireless Headphones", "electronics", 600000, 3],
+    ["p_headphones_basic", "boAt Rockerz 450", "electronics", 149900, 12],
+    ["p_mouse", "Logitech M331 Silent Mouse", "electronics", 79900, 25],
+    ["p_keyboard", "Keychron K2 Mechanical Keyboard", "electronics", 850000, 4],
+    ["p_apples", "Fresh Shimla Apples (1kg)", "groceries", 24000, 15],
+    ["p_rice", "India Gate Basmati Rice 5kg", "groceries", 69500, 8],
+    ["p_milk", "Amul Taaza Milk 1L", "groceries", 6600, 30],
   ];
   const tx = db.transaction(() => products.forEach((p) => insert.run(...p)));
   tx();
