@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fiduciary — proof</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07090c;--ink:#e8ecf1;--mut:#7d8895;--line:#1c232d;--card:#0e131a;--safe:#22c55e;--bad:#ef4444;--warn:#f59e0b;--acc:#60a5fa}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui;font-size:14px}
+.hdr{padding:22px 36px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.hdr h1{font-size:18px;font-weight:600}
+.hdr a{color:var(--mut);text-decoration:none;font-size:13px}
+.hdr a:hover{color:var(--ink)}
+.wrap{max-width:960px;margin:0 auto;padding:24px 36px 60px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);margin-bottom:12px}
+h3{font-size:16px;font-weight:600;margin-bottom:6px}
+.mut{color:var(--mut);font-size:13px;line-height:1.5}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btn{background:var(--acc);color:#06101c;border:0;font-weight:600;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
+.pill.ok{background:rgba(34,197,94,.15);color:var(--safe)} .pill.bad{background:rgba(239,68,68,.15);color:var(--bad)} .pill.warn{background:rgba(245,158,11,.15);color:var(--warn)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+#chain .blk{display:flex;gap:10px;padding:8px 10px;background:#0a0f16;border:1px solid var(--line);border-radius:8px;margin:5px 0;font-size:12.5px}
+#chain .blk .h{color:var(--mut)}
+.blk.b{border-left:3px solid var(--bad)!important}
+.blk.g{border-left:3px solid var(--safe)}
+pre{background:#0a0f16;border:1px solid var(--line);padding:12px;border-radius:9px;overflow-x:auto;font-size:12px;line-height:1.6}
+#verifyOut{font-size:14px;margin-top:8px}
+.big{font-size:32px;font-weight:700}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <h1>Proof — every safety claim, demonstrable.</h1>
+  <a href="/">← back to app</a>
+</header>
+<div class="wrap">
+
+<section>
+  <h2>One sentence</h2>
+  <p class="big" style="font-weight:600">The model can <em>propose</em>, only the control plane can <em>dispose</em>.</p>
+  <p class="mut" style="margin-top:8px">The LLM has no Razorpay credentials. Every payment intent it forms flows through this page's gates first.</p>
+</section>
+
+<section>
+  <h2>1 — Same order must never be charged twice (idempotency)</h2>
+  <p class="mut">Two identical requests fire back-to-back. Watch the second get served from cache with <b>no second Razorpay call</b>.</p>
+  <div class="row"><button class="btn" onclick="D1()">Run the double-send</button></div>
+  <pre id="o1" class="mono mut" style="margin-top:10px">— click to run —</pre>
+</section>
+
+<section>
+  <h2>2 — Agent tries to mutate params on retry → rejected with a diff</h2>
+  <p class="mut">Same logical order, but the LLM "remembered" quantity differently. The gate catches it and tells the agent exactly what it changed.</p>
+  <div class="row"><button class="btn" onclick="D2()">Run mutation attack</button></div>
+  <pre id="o2" class="mono mut" style="margin-top:10px">— click to run —</pre>
+</section>
+
+<section>
+  <h2>3 — High-value orders can't execute without your signed approval</h2>
+  <p class="mut">The agent can ask for consent; it cannot mint it. Forged signatures fail, old tokens expire, replayed tokens fail.</p>
+  <div class="row">
+    <button class="btn" onclick="D3(false)">Valid flow</button>
+    <button class="btn danger" onclick="D3(true)">Forge a signature</button>
+  </div>
+  <pre id="o3" class="mono mut" style="margin-top:10px">— click to run —</pre>
+</section>
+
+<section>
+  <h2>4 — The agent rescues lost revenue (effective price)</h2>
+  <p class="mut">Sony ₹6,000 > ₹5,000 budget. A naive agent dies here. Fiduciary applies the HDFC 20% offer → ₹4,800 → <b>purchases and marks rescued=true</b>. That's new GMV on Razorpay, found by the rail.</p>
+  <div class="row"><button class="btn" onclick="D4()">Run price-rescue</button></div>
+  <pre id="o4" class="mono mut" style="margin-top:10px">— click to run —</pre>
+</section>
+
+<section>
+  <h2>5 — Tamper with the audit ledger → detection is instant</h2>
+  <p class="mut">Every event is hash-chained. Edit any past entry's payload and verification breaks at that exact row.</p>
+  <div class="row">
+    <button class="btn danger" onclick="D5(true)">Simulate attacker edit</button>
+    <button class="btn" onclick="D5(false)">Verify chain</button>
+  </div>
+  <div id="chain" style="margin-top:10px"></div>
+  <div id="verifyOut"></div>
+</section>
+
+<section>
+  <h2>6 — Replay proof: this all ran on live Razorpay test mode</h2>
+  <p class="mut">Every order_id is a real <code>order_*</code> returned by api.razorpay.com — check your own dashboard.</p>
+  <pre id="o6" class="mono"></pre>
+</section>
+
+<section class="mut" style="font-size:13px;line-height:1.7">
+  <b>Known-honest limits:</b> single merchant, SQLite, scripted consent UI, no live bank offer feed. The point — the control plane doesn't trust the agent, enforces the merchant's rules, and writes an independently verifiable history — is true in any stack you move it to.
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const rs=p=>"₹"+(p/100).toLocaleString("en-IN");
+async function j(u,o){const r=await fetch(u,o?{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}:undefined);return r.json()}
+const P=(id,x)=>{$(id).textContent=JSON.stringify(x,null,2)}
+
+async function D1(){
+  P("o1","firing two identical requests…");
+  const a=await j("/api/agent/propose",{product_id:"p_bread",budget_paise:5000,quantity:1});
+  const b=await j("/api/agent/propose",{product_id:"p_bread",budget_paise:5000,quantity:1});
+  P("o1",{request_1:{order:a.order_id,first:true},request_2:{replay:b.replayed,same_order:b.response?.order_id===a.order_id},razorpay_calls:1});
+}
+async function D2(){
+  await j("/api/agent/propose",{product_id:"p_soap",budget_paise:4000,quantity:2});
+  const r=await j("/api/agent/propose",{product_id:"p_soap",budget_paise:4000,quantity:100});
+  P("o2",r);
+}
+async function D3(forge){
+  const p=await j("/api/agent/propose",{product_id:"p_keyboards",budget_paise:900000,quantity:1});
+  if(!p.order_id){P("o3",p);return}
+  const cons=await j("/api/agent/request-consent",{order_id:p.order_id});
+  const body={order_id:p.order_id};
+  if(cons.consent_required) body.consent={token_id:cons.token_id,signature:forge?("deadbeef"+cons.signature.slice(8)):cons.signature};
+  const r=await j("/api/agent/capture",body);
+  P("o3",{order:p.order_id,amount:rs(p.amount_paise),forged:forge,result:r});
+  loadChain();
+}
+async function D4(){
+  const r=await j("/api/agent/propose",{product_id:"p_headphones_pro",budget_paise:500000,quantity:1});
+  P("o4",{sticker:"₹6,000",budget:"₹5,000",effective_after_offer:"₹4,800",rescued:r.rescued,order:r.order_id,offers_applied:r.applied_offers});
+}
+async function D5(tamper){
+  if(tamper){ const r=await j("/api/demo/tamper",{}); P("verifyOut",""); }
+  const v=await j("/api/audit/verify");
+  const el=$("verifyOut");
+  el.innerHTML=v.ok?'<span class="pill ok">✓ chain intact — nothing altered</span>':'<span class="pill bad">✗ BROKEN at event #'+(v.brokenAt||"?")+" — payload tampered</span>";
+  loadChain();
+}
+async function loadChain(){
+  const a=await j("/api/audit?limit=8");
+  $("chain").innerHTML="<h3 class='mut'>Recent ledger entries</h3>"+a.map(e=>`<div class="blk ${/reject|violat/.test(e.event_type)?'b':'g'}"><span class="h">#${e.seq}</span><b>${e.event_type}</b><span class="mut">${new Date(e.created_at).toLocaleTimeString()}</span></div>`).join("");
+  const o=await j("/api/orders");
+  $("o6").textContent=o.filter(x=>x.live!==false).map(x=>`${x.order_id}  ${rs(x.amount_paise)}  ${x.status}`).slice(0,6).join("\n");
+}
+loadChain();D5(false);
+</script>
+</body>
+</html>

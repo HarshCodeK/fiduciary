@@ -23,14 +23,25 @@ export function seedCatalog(db: Database.Database): void {
   const insert = db.prepare(
     "INSERT INTO products (product_id, name, category, price_paise, stock_qty) VALUES (?, ?, ?, ?, ?)"
   );
-  const products: Array<[string, string, string, number, number]> = [
+const products: Array<[string, string, string, number, number]> = [
+    ["p_apples", "Apples — Shimla (per kg)", "groceries", 24000, 20],
+    ["p_bananas", "Bananas — Robusta (dozen)", "groceries", 4500, 40],
+    ["p_milk", "Milk — Amul Taaza (litre)", "dairy", 6600, 38],
+    ["p_bread", "Bread — White Sandwich (400g)", "bakery", 4500, 12],
+    ["p_eggs", "Eggs — Desi (tray of 30)", "dairy", 22500, 6],
+    ["p_atta", "Atta — Aashirvaad Shudh 5kg", "groceries", 23500, 14],
+    ["p_rice", "Rice — Basmati (5 kg)", "groceries", 69500, 9],
+    ["p_dal", "Dal — Arhar (1 kg)", "groceries", 14500, 18],
+    ["p_sugar", "Sugar — Refined (1 kg)", "groceries", 4800, 22],
+    ["p_tea", "Tea — Tata Gold 500g", "beverages", 28000, 7],
+    ["p_onions", "Onions — Nashik (per kg)", "groceries", 3500, 25],
+    ["p_potatoes", "Potatoes — Local (per kg)", "groceries", 2800, 30],
+    ["p_oil", "Sunflower Oil — Fortune 1L", "groceries", 15500, 11],
+    ["p_flour", "Maida — 1kg", "groceries", 5200, 15],
+    ["p_soap", "Soap — Lux 100g", "personal_care", 3800, 30],
+    ["p_toothpaste", "Toothpaste — Colgate Strong 150g", "personal_care", 9500, 8],
     ["p_headphones_pro", "Sony WH-1000XM5 Wireless Headphones", "electronics", 600000, 3],
-    ["p_headphones_basic", "boAt Rockerz 450", "electronics", 149900, 12],
-    ["p_mouse", "Logitech M331 Silent Mouse", "electronics", 79900, 25],
-    ["p_keyboard", "Keychron K2 Mechanical Keyboard", "electronics", 850000, 4],
-    ["p_apples", "Fresh Shimla Apples (1kg)", "groceries", 24000, 15],
-    ["p_rice", "India Gate Basmati Rice 5kg", "groceries", 69500, 8],
-    ["p_milk", "Amul Taaza Milk 1L", "groceries", 6600, 30],
+    ["p_keyboards", "Keychron K2 Mechanical Keyboard", "electronics", 850000, 4],
   ];
   const tx = db.transaction(() => products.forEach((p) => insert.run(...p)));
   tx();

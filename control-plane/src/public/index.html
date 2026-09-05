@@ -100,10 +100,11 @@ td.num,th.num{text-align:right}
 
 <header class="hero">
   <div>
-    <div class="logo">Fiduciary<span class="serif" style="color:var(--mut)">.</span><em>guard</em></div>
-    <div class="tag" style="margin-top:4px">the AI that spends your money like it's its own</div>
+    <div class="logo">Fiduciary<span class="serif" style="color:var(--mut)">.</span></div>
+    <div class="tag" style="margin-top:4px">your shop's AI cashier — spends only what's allowed, provably</div>
   </div>
   <div style="display:flex;gap:10px;align-items:center">
+    <a href="/proof.html" style="font-size:12px;color:var(--mut);text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:8px">why this is safe →</a>
     <span class="mode-pill mode-live" id="mode">checking…</span>
   </div>
 </header>
@@ -131,9 +132,13 @@ td.num,th.num{text-align:right}
   <!-- RIGHT: proof -->
   <div class="side">
     <section class="panel">
-      <div class="ph">Proof nothing was altered <button class="tamper-btn" onclick="tamper()" title="Simulate an attacker editing the log">⚡ tamper test</button></div>
-      <div class="chain-graph" id="chain"></div>
-      <div id="seal">—</div>
+      <div class="ph">Ledger integrity</div>
+      <div id="seal" style="font-size:14px">…</div>
+    </section>
+
+    <section class="panel">
+      <div class="ph">What the agent is currently allowed to do</div>
+      <div id="mandatesText" style="font-size:13px;line-height:1.6;color:var(--mut)">loading…</div>
     </section>
 
     <section class="panel">
@@ -148,7 +153,7 @@ td.num,th.num{text-align:right}
   </div>
 </main>
 
-<footer class="demo-row" id="demorow"></footer>
+<footer class="demo-row" id="demorow" style="display:none"></footer>
 
 <script>
 let lastEv=0;
@@ -255,24 +260,25 @@ async function tick(){
   m.textContent=h.live?"live · razorpay test mode":"simulated mode";
   m.className="mode-pill "+(h.live?"mode-live":"mode-sim");
   renderChain(false);verify();
-  // demo scenario buttons
-  const demos=[
-    ["1","Restock apples under ₹300/or","restock apples if below 20 kg — never auto-spend more than ₹300 per order"],
-    ["2","Try to buy the ₹6,000 headphone","check the Sony headphones — my budget is ₹5,000, buy if it fits"],
-    ["3","Same message twice (idempotency)","buy 1kg apples, budget ₹300",true],
-    ["4","Approve then capture","",false],
-    ["5","Tamper the ledger","__tamper__"],
-  ];
-  $("demorow").innerHTML="<span style='font-size:11px;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;align-self:center'>Demo:</span>"+demos.map(d=>`<button class="demo-btn" onclick="runDemo('${d[2]}')"><b>${d[0]}</b>${d[1]}</button>`).join("");
-  tick();setInterval(tick,1500);
-})();
-
-async function runDemo(text){
-  if(text==="__tamper__"){tamper();return}
-  if(!text){return}
-  $("msg").value=text;send();
-  if(text.startsWith("buy 1kg apples")){setTimeout(()=>{$("msg").value=text;send()},3000)} // fire twice → second must replay
+// Render mandates — the current rules, shown as plain sentences
+async function renderMandates(){
+  const m = await j("/api/mandates");
+  if (!m.length) {
+    $("mandatesText").innerHTML = 'No standing rules yet. Tell the agent things like <i>"keep milk above 10L, max ₹80/order"</i> and they\'ll appear here.';
+    return;
+  }
+  $("mandatesText").innerHTML = m.map(r =>
+    `<div style="padding:7px 0;border-bottom:1px solid var(--line)">• ${r.rule_text}</div>`
+  ).join("");
 }
+
+(async()=>{
+  const h=await j("/health");const m=$("mode");
+  m.textContent=h.live?"live · razorpay test mode":"simulated mode";
+  m.className="mode-pill "+(h.live?"mode-live":"mode-sim");
+  verify();renderMandates();
+  tick();setInterval(tick,1500);setInterval(()=>{renderMandates();verify()},5000);
+})();
 </script>
 </body>
 </html>

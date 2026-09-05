@@ -184,17 +184,15 @@ export function createController(db: Database.Database) {
 
     pendingConsents: async () => inbox.pending(),
 
-    /** Finalize a created order: capture if under threshold or with consent, log memory, decrement stock */
+    /** Finalize: on capture, also decrement stock and log receipt event for UI */
     finalize: async (orderId: string) => {
       const order = db.prepare("SELECT * FROM orders WHERE order_id=?").get(orderId) as any;
       if (!order) return { error: "order_not_found" };
       if (order.status === "captured") return { already: "captured", order_id: orderId };
 
       if (order.amount_paise >= HIGH_VALUE_THRESHOLD) {
-        // find pending consent request for this order
         const pending = db.prepare("SELECT * FROM consent_requests WHERE order_id=? AND status='pending' ORDER BY created_at DESC LIMIT 1").get(orderId) as any;
         if (pending) return { awaiting_merchant: true, request_id: pending.request_id };
-        // if merchant already approved earlier (inbox), the token is used; else must go through askMerchantApproval
         return { error: "consent_required", order_id: orderId, amount_paise: order.amount_paise, threshold: HIGH_VALUE_THRESHOLD };
       }
       const result = await ctrl.capture({ order_id: orderId });
@@ -203,6 +201,37 @@ export function createController(db: Database.Database) {
         bus.push("capture", `Captured ${rupees(order.amount_paise)} for ${order.order_id} — stock updated, receipt issued`);
       }
       return result;
+    },
+
+    /** ACTIVE MANDATES — what the agent is currently allowed to do without asking */
+    /** Catalog management for the shop UI */
+    addProduct: async (input: { name: string; category: string; price_paise: number; unit?: string; stock_qty?: number }) => {
+      const id = "p_" + input.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24);
+      db.prepare("INSERT INTO products (product_id, name, category, price_paise, stock_qty) VALUES (?,?,?,?,?)")
+        .run(id, input.name, input.category, input.price_paise, input.stock_qty ?? 0);
+      audit.append({ event_type: "product_added", payload: input as any });
+      return { product_id: id };
+    },
+    updateStock: async (product_id: string, stock_qty: number) => {
+      db.prepare("UPDATE products SET stock_qty=? WHERE product_id=?").run(stock_qty, product_id);
+      return { ok: true };
+    },
+    deleteProduct: async (product_id: string) => {
+      db.prepare("DELETE FROM products WHERE product_id=?").run(product_id);
+      return { ok: true };
+    },
+
+    listMandates: async () => db.prepare("SELECT * FROM merchant_rules WHERE active=1 ORDER BY created_at DESC").all(),
+    revokeMandate: async (id: number) => {
+      db.prepare("UPDATE merchant_rules SET active=0 WHERE id=?").run(id);
+      audit.append({ event_type: "mandate_revoked", payload: { id } });
+      return { ok: true };
+    },
+
+    /** Order history with receipt linkage for the UI */
+    recentOrders: async () => {
+      const rows = db.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 20").all() as any[];
+      return rows.map(o => ({ ...o, name: (db.prepare("SELECT name FROM products WHERE product_id=?").get(o.product_id) as any)?.name }));
     },
 
     auditRecent: async (limit = 30) => audit.recent(limit),
