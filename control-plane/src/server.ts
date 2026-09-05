@@ -21,7 +21,28 @@ seedCatalog(db);
 import { EventBus } from "./events/bus";
 
 const bus = new EventBus(db);
+// Simple sliding-window rate limiter (per route). Genekch recovery mode if token bucket is polluted by dev testing.
+const _buckets: Record<string, number[]> = {};
+function allowRoute(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  _buckets[key] = (_buckets[key] ?? []).filter((t) => now - t < windowMs);
+  if (_buckets[key].length >= max) return false;
+  _buckets[key].push(now);
+  return true;
+}
+function rateLimitHook(req: any, res: any, done: any) {
+  const p = req.url.split("?")[0];
+  const bucket = p.startsWith("/api/agent/") ? "agent" : p.startsWith("/api/") ? "api" : "default";
+  const max = bucket === "agent" ? 30 : bucket === "api" ? 120 : 600;
+  if (!allowRoute(bucket + ":" + (req.ip || "anon"), max, 60_000)) {
+    res.code(429).send({ error: "rate_limited", retry_after_seconds: 60 });
+    return;
+  }
+  done();
+}
+
 const app = Fastify({ logger: false });
+app.addHook("onRequest", rateLimitHook);
 const c = createController(db);
 const agent = new AgentLoop(c, bus);
 
@@ -36,6 +57,7 @@ app.post("/api/agent/propose", async (req) => c.proposePurchase(req.body as { pr
 app.post("/api/agent/request-consent", async (req) => c.requestConsent(req.body as { order_id: string }));
 app.post("/api/agent/capture", async (req) => c.capture(req.body as any));
 app.get("/api/agent/order/:id", async (req) => c.orderStatus((req.params as { id: string }).id));
+app.get("/api/forecast", async () => c.getForecast());
 
 // Merchant dashboard
 app.get("/api/inventory", async () => c.listInventory());
@@ -48,7 +70,7 @@ app.get("/api/events", async (req) => c.eventsSince(Number((req.query as any).si
 app.get("/api/consents/pending", async () => c.pendingConsents());
 app.post("/api/consents/decide", async (req) => c.decideConsent((req.body as any).request_id, (req.body as any).decision));
 app.get("/api/stats", async () => {
-  const res = db.prepare("SELECT COUNT(*) n, SUM(amount_paise) saved FROM orders WHERE rescued=1").get() as any;
+  const res = db.prepare("SELECT COUNT(*) n, COALESCE(SUM((sticker_price_paise - amount_paise)), 0) saved FROM orders WHERE rescued=1 AND status='captured'").get() as any;
   const captured = db.prepare("SELECT COUNT(*) n FROM orders WHERE status='captured'").get() as any;
   const rejected = db.prepare("SELECT COUNT(*) n FROM audit_log WHERE event_type IN ('purchase_rejected','consent_rejected','idempotency_violation')").get() as any;
   return { rescued: res.n ?? 0, rescued_saved_paise: res.saved ?? 0, captured: captured.n ?? 0, rejected: rejected.n ?? 0 };

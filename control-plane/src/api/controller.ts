@@ -7,6 +7,7 @@ import { PurchaseMemory } from "../memory/purchase-memory";
 import { AuditLog } from "../audit/log";
 import { ReceiptService } from "../audit/receipt";
 import { EventBus } from "../events/bus";
+import { DemandForecast } from "../forecast/forecast";
 import * as rzp from "../razorpay/client";
 
 const HIGH_VALUE_THRESHOLD = Number(process.env.HIGH_VALUE_THRESHOLD_PAISE ?? 200000);
@@ -20,6 +21,7 @@ export function createController(db: Database.Database) {
   const audit = new AuditLog(db);
   const receipts = new ReceiptService(process.env.CONSENT_TOKEN_SECRET ?? "");
   const bus = new EventBus(db);
+  const forecast = new DemandForecast(db);
 
   const rupees = (p: number) => `₹${(p / 100).toLocaleString("en-IN")}`;
 
@@ -203,7 +205,6 @@ export function createController(db: Database.Database) {
       return result;
     },
 
-    /** ACTIVE MANDATES — what the agent is currently allowed to do without asking */
     /** Catalog management for the shop UI */
     addProduct: async (input: { name: string; category: string; price_paise: number; unit?: string; stock_qty?: number }) => {
       const id = "p_" + input.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24);
@@ -237,6 +238,12 @@ export function createController(db: Database.Database) {
     auditRecent: async (limit = 30) => audit.recent(limit),
     auditVerify: async () => audit.verifyChain(),
     receiptsVerify: async (receipt: Record<string, unknown>) => ({ valid: receipts.verify(receipt) }),
+
+    getForecast: async () => forecast.compute().map((r) => ({
+      ...r,
+      weekend_label: r.weekend_daily > 0 ? r.weekend_daily.toFixed(1) : "no data",
+      weekday_label: r.weekday_daily > 0 ? r.weekday_daily.toFixed(1) : "no data",
+    })),
 
     replenishSuggest: async (category: string) => memory.suggestReplenishment(category),
   };

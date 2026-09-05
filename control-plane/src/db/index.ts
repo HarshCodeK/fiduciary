@@ -46,6 +46,29 @@ const products: Array<[string, string, string, number, number]> = [
   const tx = db.transaction(() => products.forEach((p) => insert.run(...p)));
   tx();
 
+  // Seed 28 days of sales history so the demand forecast has real signal
+  const sales = db.prepare("INSERT INTO sales_history (product_id, quantity, sold_at) VALUES (?,?,?)");
+  const now = Date.now(), DAY = 86400000;
+  const salesTx = db.transaction(() => {
+    for (let d = 0; d < 28; d++) {
+      const t = now - d * DAY;
+      const dow = new Date(t).getDay();
+      const wknd = (dow === 0 || dow === 6);
+      sales.run("p_bread", wknd ? 3.8 : 1.6, t);
+      sales.run("p_milk", wknd ? 2.2 : 1.5, t);
+      sales.run("p_apples", wknd ? 2.6 : 1.2, t);
+      sales.run("p_bananas", wknd ? 2.0 : 1.1, t);
+      if (d % 2 === 0) sales.run("p_rice", 0.6, t);
+      if (wknd) sales.run("p_eggs", 2.4, t);
+      sales.run("p_tea", 0.6, t);
+      if (wknd) sales.run("p_oil", 0.8, t);
+      sales.run("p_sugar", 0.5, t);
+      sales.run("p_onions", 0.9, t);
+      sales.run("p_potatoes", 1.1, t);
+    }
+  });
+  salesTx();
+
   const insertOffer = db.prepare(
     "INSERT INTO offers (offer_id, product_id, category, type, value, max_discount_paise, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
   );

@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS offers (
   active INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS sales_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id TEXT NOT NULL,
+  quantity REAL NOT NULL,
+  sold_at INTEGER NOT NULL                -- unix ms
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_product_time ON sales_history (product_id, sold_at);
+
 CREATE TABLE IF NOT EXISTS merchant_rules (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rule_text TEXT NOT NULL,            -- natural language rule as the merchant typed it

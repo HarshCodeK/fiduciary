@@ -20,6 +20,14 @@ const TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "demand_forecast",
+      description: "Get predicted demand per product for the next few days based on actual sales history. Returns rows sorted by urgency — the 'bread is going to run out before Sunday' signal. Use this before deciding to restock.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "add_mandate",
       description: "Register a standing rule the merchant grants you. Call this whenever the merchant states a new policy in the form: subject/category, restock trigger (min stock), per-unit price cap, auto-approve spend cap. Returns the registered mandate.",
       parameters: {
@@ -110,13 +118,13 @@ const SYSTEM = `You are Fiduciary, an autonomous purchasing agent for a small sh
 Your job: keep the shop stocked according to the merchant's rules, and never spend money unsafely.
 
 Rules of behavior:
-1. FIRST: if the merchant just gave you a standing rule, call add_mandate to register it before doing anything else. That makes it visible and revocable by the merchant.
-2. Always check_inventory first to see what's low.
-3. Before buying, call evaluate_deal to check the EFFECTIVE price (after offers). Sticker price lies; effective price is truth. Report the rescue when an offer saves a deal (sticker > budget but effective ≤ budget).
-4. To buy, call place_order with the effective-price fitting. If it returns consent_needed, call request_merchant_approval with an honest reason, then STOP and tell the merchant you're awaiting their approval. Never fake approval.
-5. Never retry a purchase with changed parameters — the control plane will reject you and explain the diff. If that happens, accept it.
-6. Talk like a smart ops assistant, brief and specific: quantities, prices in ₹, what's approved/blocked, what's waiting on the merchant.
-7. If nothing is low and no deal rescues a blocked item, say so and stop. Doing nothing correctly is a win.`;
+1. If the merchant gave you a standing rule, call add_mandate first so it's visible and revocable.
+2. Then call demand_forecast to predict what will run out next — proactive beats reactive. Mention the data when you decide.
+3. Check inventory to confirm current stock.
+4. Before buying, call evaluate_deal for the effective price (sticker lies; offers can rescue a deal).
+5. To buy, call place_order. If the answer is consent_needed, call request_merchant_approval with an honest reason, then STOP. Never fake approval.
+6. Never retry a purchase with changed parameters — the control plane rejects and explains the diff; accept it.
+7. Sound like a smart ops assistant: quantities, ₹, explicit statuses. If nothing is due, say so and stop — correct inaction is a win.`;
 
 export class AgentLoop {
   constructor(private controller: Controller, private bus: EventBus) {}
@@ -178,6 +186,8 @@ export class AgentLoop {
         return await c.finalize(args.order_id);
       case "add_mandate":
         return await (c as any).addRule({ rule_text: args.rule_text, category: args.category, max_unit_price_paise: args.max_unit_price_paise, min_stock: args.min_stock, max_auto_spend_paise: args.max_auto_spend_paise });
+      case "demand_forecast":
+        return await (c as any).getForecast();
       default:
         return { error: `unknown tool ${name}` };
     }

@@ -38,7 +38,13 @@ export class ConsentInbox {
   /** Merchant side: approve/reject. On approve, mints the actual consent token. */
   decide(requestId: string, approved: boolean, merchantId: string): ConsentRequest {
     const r = this.get(requestId);
-    if (!r) throw new Error("request_not_found");
+    if (!r) {
+      const notFound: ConsentRequest = {
+        request_id: requestId, status: "rejected" as any, action: "", amount_paise: 0,
+        order_id: undefined, reason: "request_not_found", created_at: 0,
+      };
+      return notFound;
+    }
     if (r.status !== "pending") return r;
     if (approved) {
       const tok = this.consent.issue({ action: r.action, amount_paise: r.amount_paise, merchant_id: merchantId, order_id: r.order_id ?? "" });
