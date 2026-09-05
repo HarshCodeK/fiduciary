@@ -58,6 +58,10 @@ app.post("/api/agent/request-consent", async (req) => c.requestConsent(req.body 
 app.post("/api/agent/capture", async (req) => c.capture(req.body as any));
 app.get("/api/agent/order/:id", async (req) => c.orderStatus((req.params as { id: string }).id));
 app.get("/api/forecast", async () => c.getForecast());
+app.post("/api/catalog/add", async (req) => c.addProduct(req.body as any));
+app.post("/api/catalog/stock", async (req) => c.updateStock((req.body as any).product_id, (req.body as any).stock_qty));
+app.post("/api/sales", async (req) => c.recordSale(req.body as any));
+app.get("/api/sales", async (req) => c.salesHistory(Number((req.query as any).days ?? 28)));
 
 // Merchant dashboard
 app.get("/api/inventory", async () => c.listInventory());

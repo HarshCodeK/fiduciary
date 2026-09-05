@@ -210,16 +210,45 @@ export function createController(db: Database.Database) {
       const id = "p_" + input.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 24);
       db.prepare("INSERT INTO products (product_id, name, category, price_paise, stock_qty) VALUES (?,?,?,?,?)")
         .run(id, input.name, input.category, input.price_paise, input.stock_qty ?? 0);
-      audit.append({ event_type: "product_added", payload: input as any });
+      audit.append({ event_type: "product_added", payload: input as unknown as Record<string, unknown> });
+      bus.push("info", `Added ${input.name} (${input.category}) @ ${rupees(input.price_paise)} · ${input.stock_qty ?? 0} in stock`);
       return { product_id: id };
     },
     updateStock: async (product_id: string, stock_qty: number) => {
       db.prepare("UPDATE products SET stock_qty=? WHERE product_id=?").run(stock_qty, product_id);
+      bus.push("info", `Stock updated: ${product_id} → ${stock_qty}`);
       return { ok: true };
     },
     deleteProduct: async (product_id: string) => {
       db.prepare("DELETE FROM products WHERE product_id=?").run(product_id);
       return { ok: true };
+    },
+
+    /** Record a MANUAL sale (what actually left the shop today). Feeds the forecast. */
+    recordSale: async (input: { product_id: string; quantity: number; at?: number }) => {
+      const product = db.prepare("SELECT product_id, name FROM products WHERE product_id=?").get(input.product_id) as any;
+      if (!product) return { error: "product_not_found" };
+      db.prepare("INSERT INTO sales_history (product_id, quantity, sold_at) VALUES (?,?,?)").run(
+        input.product_id, input.quantity, input.at ?? Date.now()
+      );
+      // Reduce stock so inventory stays honest
+      db.prepare("UPDATE products SET stock_qty = MAX(0, stock_qty - ?) WHERE product_id=?").run(input.quantity, input.product_id);
+      audit.append({ event_type: "manual_sale_recorded", payload: { product_id: input.product_id, quantity: input.quantity } });
+      return { ok: true, product: product.name, stock_after: (db.prepare("SELECT stock_qty FROM products WHERE product_id=?").get(input.product_id) as any).stock_qty };
+    },
+    salesHistory: async (days = 28) => {
+      const since = Date.now() - days * 86400000;
+      return db.prepare(`
+        SELECT p.name, p.product_id, SUM(s.quantity) total_qty, COUNT(DISTINCT date(s.sold_at/1000,'unixepoch')) days_sold
+        FROM sales_history s JOIN products p ON p.product_id = s.product_id
+        WHERE s.sold_at >= ?
+        GROUP BY s.product_id
+        ORDER BY total_qty DESC
+      `).all(since);
+    },
+    topPredicted: async () => {
+      // alias for getForecast, cleaner endpoint name for the UI
+      return forecast.compute();
     },
 
     listMandates: async () => db.prepare("SELECT * FROM merchant_rules WHERE active=1 ORDER BY created_at DESC").all(),

@@ -95,7 +95,8 @@ pre{background:#0a0f16;border:1px solid var(--line);padding:12px;border-radius:9
 </section>
 
 <section class="mut" style="font-size:13px;line-height:1.7">
-  <b>Known-honest limits:</b> single merchant, SQLite, scripted consent UI, no live bank offer feed. The point — the control plane doesn't trust the agent, enforces the merchant's rules, and writes an independently verifiable history — is true in any stack you move it to.
+  <b>Demo setup:</b> Test-mode Razorpay keys, scripted consent via this UI, mock offer table. On production: live keys, real offers API, HITL via your merchant app.
+  The point holds either way: the agent proposes, the control plane disposes, and history is independently verifiable.
 </section>
 </div>
 
