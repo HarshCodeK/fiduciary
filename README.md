@@ -1,66 +1,140 @@
-# Fiduciary
+# fiduciary
 
-**A trust layer for agentic commerce on Razorpay: bounded, consent-gated, idempotent, and verifiably receipted.**
+> **A trust layer for agentic commerce.**
+> An AI buyer agent that searches a catalog and pays on Razorpay — but every money action passes through a control plane the agent cannot bypass. Idempotent, consent-gated, hash-chained audit, signed receipts.
 
-An AI buyer agent that searches a catalog, decides what to buy, and pays on Razorpay test-mode APIs — but **every money action passes through a control plane the agent cannot bypass**. The agent never touches Razorpay credentials; it can only call gate-enforced internal endpoints.
+![typescript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript&logoColor=white)
+![fastify](https://img.shields.io/badge/Fastify-5+-000000?logo=fastify&logoColor=white)
+![razorpay](https://img.shields.io/badge/Razorpay-test--mode-07263D?logo=razorpay&logoColor=white)
+![license](https://img.shields.io/badge/license-MIT-lightgrey)
+![tier](https://img.shields.io/badge/tier-A-E3B341)
 
-Razorpay AI Buildathon — Track 01 (AI Growth & Agentic Commerce). Track bar: *"every money action explainable, bounded and gated… audit trail and one failure handled gracefully."* This project is that bar, as a product.
+---
 
-## Why this exists
+## The thesis
 
-Agentic-commerce infrastructure is being built to let agents transact; the unsolved half is the control plane around those transactions — bounds, consent, idempotency, independent verification. Our thesis: **the model is untrusted; the control plane is trusted.** The agent proposes; the plane disposes. A documented failure mode this design defends against: agent-level retry of a timed-out tool call creating duplicate payment intent unless idempotency is enforced above the tool layer.
+> **The model is untrusted. The control plane is trusted.**
+> The agent proposes; the plane disposes.
+
+Agentic commerce is being built to let agents transact. The unsolved half is the control plane around those transactions — bounds, consent, idempotency, independent verification.
+
+---
 
 ## Architecture
 
 ```
-LLM agent (proposes purchases, no Razorpay credentials)
+LLM agent (proposes purchases, NO Razorpay credentials)
         │  /api/agent/* only
         ▼
-CONTROL PLANE (the product)
-  1. Effective-price engine   sticker → real cost after offers
-  2. Idempotency guard        key derived from intent, params_hash + diff on violation
-  3. Consent service          HMAC-authenticated, single-use, TTL, amount-bound
-  4. Audit log                append-only, hash-chained, verifyChain() on demand
-  5. Receipts                 signed, offline-verifiable per transaction
-        ▼
-razorpay/client.ts — the ONLY module allowed to talk to Razorpay
+┌──────────────────── CONTROL PLANE ────────────────────┐
+│                                                        │
+│  1. Effective-price engine   sticker → real cost       │
+│  2. Idempotency guard        key from intent, diff    │
+│  3. Consent service          HMAC, single-use, TTL    │
+│  4. Audit log                hash-chained, verifyable │
+│  5. Receipts                 signed, offline-verifiable│
+│                                                        │
+└────────────────────────┬───────────────────────────────┘
+                         ▼
+           razorpay/client.ts — ONLY module that talks to Razorpay
 ```
 
-## What to run
+---
 
-```bash
-cd control-plane
-npm install
-cp ../.env.example ../.env   # fill RAZORPAY_KEY_ID/SECRET (test mode) + CONSENT_TOKEN_SECRET
-npm run build
-node -r dotenv/config dist/server.js   # control plane on :4100
+## The 5 control plane components
+
+### 1. Effective-price engine
+
+Resolves offers to compute the real price. A ₹6,000 product with 20% HDFC offer = ₹4,800 effective. An agent with ₹5,000 budget would naively reject it; this engine rescues the deal.
+
+```
+sticker_paise: 600000
+effective_paise: 480000  (after HDFC 20% offer)
+within_budget: true      (budget was 500000)
+rescued: true            (sticker > budget but effective <= budget)
 ```
 
-Then, in a second terminal, the full live demo (all 6 judging scenarios):
+### 2. Idempotency guard
 
-```bash
-node demo/run-demo.js
-```
+The idempotency key is **derived deterministically** from `(action, product_id, budget)` — the agent cannot choose or change it.
 
-Customer transparency panel: open `frontend/index.html` in a browser while the demo runs — orders + audit trail update live, and the "Verify chain" button recomputes every hash on demand.
+| Scenario | Result |
+|----------|--------|
+| Same intent, retry | **Replay** — cached response, no second Razorpay call |
+| Same key, mutated params | **Reject** — structured diff (`quantity: 1 → 100`) so agent self-corrects |
+| New intent | **Execute** — fresh transaction |
 
-## The six demo scenarios
+### 3. Consent service
+
+The agent **cannot** mint tokens. Only a human clicking "Approve" calls `issue()`.
+
+- HMAC-signed (SHA-256, timing-safe compare)
+- TTL-bound (5 min default)
+- Single-use (marked used on verify)
+- Amount-bound (₹500 token can't authorize ₹5,000 capture)
+
+### 4. Audit log
+
+Append-only, hash-chained SQLite. Every entry contains `prev_hash` and `this_hash = SHA256(prev_hash + payload_json + seq)`.
+
+`verifyChain()` recomputes every hash on demand. Any tampering breaks the chain at the exact sequence number.
+
+### 5. Receipts
+
+HMAC-signed per-transaction receipt: `{order_id, amount_paise, status, issued_at, signature}`. Verification needs only the receipt JSON + the public endpoint — no DB access required.
+
+---
+
+## The 6 demo scenarios
 
 | # | Scenario | What it proves |
 |---|----------|----------------|
 | 1 | Happy-path purchase | Search → price → order created on live Razorpay |
 | 2 | Network timeout → agent retries twice | Same logical intent replays from cache; **no second Razorpay call** |
-| 3 | Agent mutates quantity on retry | Rejected with structured diff (`quantity: 1 → 100`) so the agent can self-correct |
-| 4 | High-value capture without consent / forged token / token replay | All rejected; only a fresh human-issued token allows capture |
-| 5 | ₹6,000 product vs ₹5,000 budget | Effective-price engine resolves the HDFC 20% offer → ₹4,800 → **purchased (rescued=true)** |
-| 6 | Audit verification | Chain verified live; every pass *and* rejection is recorded |
+| 3 | Agent mutates quantity on retry | Rejected with structured diff so agent self-corrects |
+| 4 | High-value capture without consent / forged token / token replay | All rejected; only fresh human-issued token allows capture |
+| 5 | ₹6,000 product vs ₹5,000 budget | Effective-price engine rescues the deal |
+| 6 | Audit verification | Chain verified live; every pass AND rejection recorded |
 
-## Revenue story (why Razorpay should care)
+```bash
+# Run all 6 scenarios
+cd control-plane && npm install && npm run build
+node -r dotenv/config dist/server.js          # terminal 1
+node demo/run-demo.js                          # terminal 2
+```
 
-- **Recovered GMV:** scenario 5 is a sale a sticker-price agent demonstrably loses. Modeled assumption: if ~8% of agent-attempted purchases die at a budget check and effective-price rescues 15% of those, that's ~1.2 recovered transactions per 100 agent attempts — each one real volume on Razorpay rails.
-- **Bounded replenishment:** purchase memory proposes re-orders of repeat categories — but always back through the same consent gates. Recurring volume without silent spending.
-- **Enterprise trust substrate:** the same control plane can sit between any agent interface (including Razorpay's own MCP server) and payment execution, giving merchants deterministic controls and independently verifiable transaction history.
+---
 
-## Honest limits
+## Quickstart
 
-Test-mode only. Single-node SQLite. Consent "UI" is an API call in this build. Offer table is a deterministic fixture, not a live bank-offer feed. Every simulated response carries a `simulated` flag — live and simulated never look identical on screen.
+```bash
+cd control-plane
+npm install
+cp ../.env.example ../.env   # fill RAZORPAY_KEY_ID/SECRET (test mode)
+npm run build
+node -r dotenv/config dist/server.js
+# server on http://localhost:4100
+```
+
+Open `frontend/index.html` for the transparency panel with live audit trail and "Verify chain" button.
+
+---
+
+## What this is NOT
+
+- Test-mode Razorpay only (no live payments)
+- Single-node SQLite (no horizontal scaling)
+- Consent "UI" is an API call in this build (not a real page)
+- Offer table is a deterministic fixture (not a live bank feed)
+
+---
+
+## Built at
+
+**Razorpay AI Buildathon — Track 01: AI Growth & Agentic Commerce**
+
+---
+
+## License
+
+MIT
