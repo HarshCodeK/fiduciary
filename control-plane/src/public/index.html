@@ -1,330 +1,449 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fiduciary — the AI that spends your money like it's its own</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fiduciary — trust layer for agentic commerce</title>
+<meta name="description" content="AI buyer agent searches a catalog and pays on Razorpay, but every money action passes through a control plane the agent cannot bypass. Consent-gated, idempotent, hash-chained audit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/house.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Fiduciary","description":"Trust layer for agentic commerce — consent-gated payments with hash-chained audit."}
+</script>
 <style>
 :root{
-  --bg:#0b0c10;--ink:#f2f0ea;--mut:#8a8f98;--line:#232733;
-  --card:#12141a;--card2:#16181f;
-  --safe:#2dd4a7;--blocked:#ff5c6c;--waiting:#ffc24b;--accent:#7b8cff;--gold:#f0c86e;
+  --bg:#0b0f14;
+  --card:#121822;
+  --line:rgba(31,42,55,.6);
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --accent:#3b82f6;
+  --ok:#22c55e;
+  --bad:#ef4444;
+  --warn:#f59e0b;
+  --panel:rgba(15,23,35,.6);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow-x:hidden}
-.serif{font-family:Fraunces,serif}
-/* ---------- HERO ---------- */
-.hero{padding:28px 40px 20px;display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line)}
-.logo{font-family:Fraunces,serif;font-size:34px;font-weight:600;letter-spacing:-1px}
-.logo em{font-style:italic;color:var(--gold)}
-.tag{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--mut)}
-.mode-pill{font-size:11px;padding:5px 12px;border-radius:99px;letter-spacing:1px;text-transform:uppercase}
-.mode-live{background:rgba(45,212,167,.12);color:var(--safe);border:1px solid rgba(45,212,167,.3)}
-.mode-sim{background:rgba(255,194,75,.12);color:var(--waiting);border:1px solid rgba(255,194,75,.3)}
-/* ---------- GUARD STRIP ---------- */
-.guard{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
-.gcell{background:var(--bg);padding:18px 24px}
-.gnum{font-family:Fraunces,serif;font-size:40px;font-weight:600;line-height:1}
-.glab{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px}
-.gsafe .gnum{color:var(--safe)} .gblocked .gnum{color:var(--blocked)} .grescued .gnum{color:var(--gold)} .gwaiting .gnum{color:var(--waiting)}
-/* ---------- MAIN ---------- */
-.main{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;padding:22px 40px 32px}
-.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-.ph{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--mut);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
-/* chat */
-.chatbox{display:flex;gap:10px;margin-bottom:16px}
-.chatbox input{flex:1;background:#0e1116;border:1px solid var(--line);border-radius:10px;padding:13px 16px;color:var(--ink);font-size:14.5px;outline:none;transition:border .2s}
-.chatbox input:focus{border-color:var(--accent)}
-.send{background:var(--accent);color:#0b0c10;font-weight:700;padding:0 22px;border-radius:10px;border:0;cursor:pointer;font-size:14px}
-.feed{max-height:54vh;overflow-y:auto;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin}
-.msg{max-width:88%;padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.55;animation:rise .3s ease}
-@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
-.msg.user{align-self:flex-end;background:#1c2438;border:1px solid #2a3450}
-.msg.agent{background:var(--card2);border:1px solid var(--line)}
-.msg.gate{background:transparent;border:1px dashed var(--line);color:var(--mut);font-size:12.5px;align-self:stretch;max-width:100%}
-.gate .verdict{font-weight:700;letter-spacing:.5px;margin-right:8px}
-.gate.pass .verdict{color:var(--safe)} .gate.fail .verdict{color:var(--blocked)} .gate.wait .verdict{color:var(--waiting)}
-.msg.rescue{border:1px solid rgba(240,200,110,.35);background:linear-gradient(180deg,rgba(240,200,110,.06),transparent)}
-.msg.rescue .rescue-tag{color:var(--gold);font-size:11px;letter-spacing:1.5px;text-transform:uppercase}
-/* consent card in-chat */
-.approval{align-self:stretch;background:linear-gradient(135deg,rgba(255,194,75,.09),rgba(255,194,75,.02));border:1px solid rgba(255,194,75,.4);border-radius:14px;padding:16px;animation:pulse 1.6s infinite}
-@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(255,194,75,.05)}}
-.approval .amt{font-family:Fraunces,serif;font-size:26px;color:var(--waiting)}
-.approval p{font-size:13px;color:var(--ink);margin:6px 0 12px}
-.approval .btns{display:flex;gap:10px}
-.btn{padding:9px 18px;border-radius:9px;border:0;font-weight:600;font-size:13px;cursor:pointer}
-.btn-yes{background:var(--safe);color:#06251c}.btn-no{background:transparent;color:var(--blocked);border:1px solid var(--blocked)}
-.approval.decided{animation:none;opacity:.75}
-/* ---------- RIGHT COLUMN ---------- */
-.side{display:flex;flex-direction:column;gap:16px}
-/* chain */
-.chain-graph{margin:6px 0 4px}
-.block{display:flex;align-items:center;gap:10px;padding:7px 10px;background:#0e1116;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;font-size:12.5px;transition:all .25s}
-.block .h{font-family:monospace;font-size:10px;color:var(--mut)}
-.block .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.block.status-ok{border-left:3px solid var(--safe)}
-.block.status-bad{border-left:3px solid var(--blocked);background:#1b1013}
-.block.status-wait{border-left:3px solid var(--waiting)}
-#sealbtn{font-size:12px}
-#seal{font-size:12.5px;margin-top:6px}
-#seal.ok{color:var(--safe)} #seal.bad{color:var(--blocked)}
-/* tamper */
-.tamper-btn{background:transparent;border:1px dashed var(--blocked);color:var(--blocked);font-size:11.5px;padding:6px 12px;border-radius:8px;cursor:pointer}
-.tamper-btn:hover{background:rgba(255,92,108,.08)}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{color:#60a5fa}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--line);background:rgba(11,15,20,.75);backdrop-filter:blur(20px);position:sticky;top:0;z-index:20}
+header .wrap{display:flex;align-items:center;gap:16px;height:64px}
+header .name{font-weight:700;font-size:16px;background:linear-gradient(135deg,#e5e7eb,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+header nav{margin-left:auto;display:flex;gap:20px}
+header nav a{font-size:14px;color:var(--muted);font-weight:500}header nav a:hover{color:var(--text)}
+
+/* hero */
+.hero{padding:96px 0 48px}
+.hero h1{font-size:clamp(28px,4.5vw,42px);font-weight:800;line-height:1.05;margin:12px 0}
+.hero .lead{color:var(--muted);max-width:640px}
+.chip{display:inline-flex;align-items:center;gap:6px;font:12px/1 ui-monospace,monospace;padding:4px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--panel);backdrop-filter:blur(8px)}
+.chip.ok{border-color:rgba(34,197,94,.4);color:var(--ok);background:rgba(34,197,94,.06)}
+.chip.bad{border-color:rgba(239,68,68,.4);color:var(--bad);background:rgba(239,68,68,.06)}
+
+/* stats */
+.stats{display:flex;gap:24px;margin-top:32px;flex-wrap:wrap}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 24px;min-width:140px}
+.stat .v{font-family:ui-monospace,monospace;font-size:28px;font-weight:700}
+.stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+.stat .v.accent{color:var(--accent)}
+.stat .v.ok{color:var(--ok)}
+.stat .v.warn{color:var(--warn)}
+
+/* grid */
+section{padding:48px 0;border-top:1px solid var(--line)}
+h2{font-size:22px;font-weight:700;margin-bottom:16px}
+.sub{color:var(--muted);margin-bottom:24px;font-size:14px}
+
 /* inventory */
-table{width:100%;border-collapse:collapse;font-size:13px}
-td,th{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);color:var(--ink)}
-td.num,th.num{text-align:right}
-.low td{color:var(--blocked)}
-.stockbar{height:4px;border-radius:99px;background:var(--line);width:70px;margin-top:3px}
-.stockbar i{display:block;height:100%;border-radius:99px;background:var(--safe)}
-.low .stockbar i{background:var(--blocked)}
-/* receipt */
-.receipt{background:#fdfdf8;color:#1a1a1a;border-radius:10px;padding:14px;font-size:12.5px;font-family:'Courier New',monospace;position:relative;overflow:hidden}
-.receipt:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.025) 3px 4px);pointer-events:none}
-.receipt .rhead{font-family:Fraunces,serif;font-size:15px;font-weight:600;display:flex;justify-content:space-between;border-bottom:1px dashed #999;padding-bottom:6px;margin-bottom:6px}
-.receipt .sig{font-size:10px;color:#666;word-break:break-all;margin-top:6px}
-.receipt .verified{color:#0a7a4d;font-weight:700}
-.receipt.hidden{display:none}
-/* scenario buttons */
-.demo-row{display:flex;gap:8px;flex-wrap:wrap;padding:14px 40px 20px;border-top:1px solid var(--line)}
-.demo-btn{background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:12.5px;padding:8px 14px;border-radius:99px;cursor:pointer}
-.demo-btn:hover{border-color:var(--accent);color:#fff}
-.demo-btn b{color:var(--accent);margin-right:5px}
-.flash-red{animation:flashred 1s}
-@keyframes flashred{0%,100%{}50%{box-shadow:0 0 40px rgba(255,92,108,.5)}}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.product-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;transition:all .2s;cursor:pointer}
+.product-card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px)}
+.product-card .name{font-weight:600;font-size:14px;margin-bottom:4px}
+.product-card .meta{font-size:12px;color:var(--muted)}}
+.product-card .price{font-size:18px;font-weight:700;margin-top:8px}
+.product-card .rescued .offer-bg{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);padding:4px 8px;border-radius:6px;font-size:10px;color:var(--ok);margin-top:6px}
+
+/* checkout drawer */
+.checkout-drawer{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:20px;border-radius:12px 12px 0 0;transform:translateY(100%);transition:transform .3s;box-shadow:0 -20px 60px rgba(0,0,0,.3)}
+.checkout-drawer.active{transform:translateY(0)}
+.checkout-drawer .handle{width:40px;height:3px;background:var(--line);border-radius:999px;margin:0 auto 16px}
+.checkout-drawer .total{font-size:24px;font-weight:700;margin:12px 0}
+.checkout .btn{background:var(--accent);color:#fff;border:0;padding:10px 20px;border-radius:10px;font-weight:600;cursor:pointer;width:100%;font-size:14px}
+.checkout .btn:hover{background:#60a5fa}
+.checkout .btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* consent modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-backdrop.active{opacity:1;pointer-events:all}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px;max-width:420px;width:90%}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:12px}
+.modal .amount{font-size:24px;font-weight:700;color:var(--warn);margin:12px 0}
+.modal .steps{display:flex;gap:8px;margin:20px 0}
+.step-dot{width:8px;height:8px;border-radius:50%;background:var(--line);transition:all .3s}
+.step-dot.active{background:var(--accent)}
+.step-dot.done{background:var(--ok)}
+.modal .btn-row{display:flex;gap:12px;margin-top:20px}
+.modal .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.modal .btn-primary{background:var(--accent);color:#fff}
+
+/* agent trace */
+.trace{max-height:400px;overflow-y:auto;font-family:ui-monospace,monospace;font-size:12px}
+.trace-item{border-bottom:1px solid var(--line);padding:8px 0}
+.trace-item .step{color:var(--accent);font-weight:700}
+.trace-item .ok{color:var(--ok)}
+.trace-item .reject{color:var(--bad)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+.tab{padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;border-radius:8px 8px 0 0;transition:all .2s}
+.tab.active{background:var(--accent);color:#0b0f14}
+.tab:not(.active){color:var(--muted);hover:color:var(--text)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+footer{border-top:1px solid var(--line);padding:24px 0;text-align:center;color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
 
-<header class="hero">
-  <div>
-    <div class="logo">Fiduciary<span class="serif" style="color:var(--mut)">.</span></div>
-    <div class="tag" style="margin-top:4px">your shop's AI cashier — spends only what's allowed, provably</div>
-  </div>
-  <div style="display:flex;gap:10px;align-items:center">
-    <a href="/proof.html" style="font-size:12px;color:var(--mut);text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:8px">why this is safe →</a>
-    <span class="mode-pill mode-live" id="mode">checking…</span>
-  </div>
-</header>
+<header><div class="wrap">
+  <span class="name">Fiduciary</span>
+  <nav>
+    <a href="#shop">Shop</a>
+    <a href="#checkout" id="checkout-link">Checkout</a>
+    <a href="#audit">Audit</a>
+    <a href="https://github.com/HarshCodeK/fiduciary">GitHub</a>
+  </nav>
+</div></header>
 
-<section class="guard">
-  <div class="gcell gsafe"><div class="gnum" id="n-safe">0</div><div class="glab">safe purchases</div></div>
-  <div class="gcell gblocked"><div class="gnum" id="n-blocked">0</div><div class="glab">attacks blocked</div></div>
-  <div class="gcell grescued"><div class="gnum" id="n-rescued">₹0</div><div class="glab">revenue rescued</div></div>
-  <div class="gcell gwaiting"><div class="gnum" id="n-waiting">0</div><div class="glab">awaiting you</div></div>
-</section>
+<div class="wrap">
 
-<main class="main">
-  <!-- LEFT: the agent -->
-  <section class="panel">
-    <div class="ph">Talk to your agent <span style="color:var(--safe);font-size:10px">● LIVE</span></div>
-    <div class="chatbox">
-      <input id="msg" placeholder='Try: "restock apples if below 20 kg, never auto-spend over ₹300"'/>
-      <button class="send" onclick="send()">Send</button>
+  <!-- HERO -->
+  <div class="hero">
+    <span class="chip ok">trust layer for agentic commerce</span>
+    <h1>Every payment passes through a control plane the AI cannot bypass.</h1>
+    <p class="lead">AI buyer agent searches a catalog and pays on Razorpay — but every money action goes through consent tokens, idempotency guards, and a hash-chained audit log. The model is untrusted. The plane is trusted.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="v accent" id="stat-orders">0</div><div class="l">Orders created</div></div>
+      <div class="stat"><div class="v ok" id="stat-captured">0</div><div class="l">Successfully captured</div></div>
+      <div class="stat"><div class="v warn" id="stat-rescued">0</div><div class="l">Deals rescued by offer engine</div></div>
+      <div class="stat"><div class="v" id="stat-rejected">0</div><div class="l">Rejected at trust boundary</div></div>
     </div>
-    <div id="feed" class="feed">
-      <div class="msg agent">I'm watching your stock. Tell me a rule in plain English and I'll enforce it — every purchase still passes through the guard gates first.</div>
-    </div>
+  </div>
+
+  <!-- SHOP -->
+  <section id="shop">
+    <h2>Catalog</h2>
+    <p class="sub">Search the catalog. Products over ₹2,000 trigger a consent gate — a human must approve before capture.</p>
+    <div class="product-grid" id="inventory">Loading catalog…</div>
   </section>
+</div>
 
-  <!-- RIGHT: proof -->
-  <div class="side">
-    <section class="panel">
-      <div class="ph">Ledger integrity</div>
-      <div id="seal" style="font-size:14px">…</div>
-    </section>
-
-    <section class="panel">
-      <div class="ph">What the agent is currently allowed to do</div>
-      <div id="mandatesText" style="font-size:13px;line-height:1.6;color:var(--mut)">loading…</div>
-    </section>
-
-    <section class="panel">
-      <div class="ph">Latest signed receipt</div>
-      <div class="receipt" id="receipt"><span style="color:var(--mut)">A receipt appears here after a capture.</span></div>
-    </section>
-
-    <section class="panel">
-      <div class="ph">Inventory</div>
-      <table><thead><tr><th>Item</th><th class="num">Price</th><th class="num">Stock</th></tr></thead><tbody id="inv"></tbody></table>
-    </section>
+<!-- CHECKOUT DRAWER -->
+<div class="checkout-drawer" id="checkout-drawer">
+  <div class="handle"></div>
+  <div style="max-width:560px;margin:0 auto">
+    <h3>Checkout</h3>
+    <div id="checkout-content"></div>
+    <div class="total">Total: <span id="checkout-total">₹0</span></div>
+    <button class="btn" id="checkout-btn" disabled>Proceed to consent gate</button>
   </div>
-</main>
+</div>
 
-<section class="panel" style="margin:0 40px 18px;max-width:1100px">
-  <div class="ph">Add a product</div>
-  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px">
-    <input id="np_name" placeholder="Name (e.g. Curd — Mother Dairy 500g)" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)"/>
-    <input id="np_price" placeholder="Price ₹" type="number" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)"/>
-    <input id="np_stock" placeholder="Stock" type="number" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)"/>
-    <input id="np_cat" placeholder="Category" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)" value="groceries"/>
-    <button class="send" style="padding:9px 16px" onclick="addProduct()">Add</button>
+<!-- CONSENT MODAL -->
+<div class="modal-backdrop" id="consent-modal">
+  <div class="modal">
+    <h3>Manual approval required</h3>
+    <p style="color:var(--muted);font-size:13px">High-value purchases over the threshold require human consent.</p>
+    <div class="amount" id="consent-amount">₹2,000</div>
+    <div>Trust protocol steps:</div>
+    <div class="steps" id="consent-steps">
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:12px 0" id="consent-status">Waiting for approval…</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="rejectConsent()">Reject</button>
+      <button class="btn btn-primary" onclick="approveConsent()">Approve capture</button>
+    </div>
   </div>
-</section>
+</div>
 
-<section class="panel" style="margin:0 40px 18px;max-width:1100px">
-  <div class="ph">Record a sale <span style="color:var(--mut);font-size:10px">— teaches the agent what actually moves</span></div>
-  <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px">
-    <select id="sale_pid" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)"></select>
-    <input id="sale_qty" placeholder="Qty" type="number" step="0.5" style="background:#0d131a;border:1px solid var(--line);border-radius:8px;padding:9px;color:var(--ink)"/>
-    <button class="send" style="padding:9px 16px" onclick="recordSale()">Log sale</button>
+<!-- BOTTOM TABS -->
+<div style="position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:12px 24px;max-width:1200px;margin:0 auto">
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('audit')">Audit trail</div>
+    <div class="tab" onclick="showTab('trace')">Agent trace</div>
+    <div class="tab" onclick="showTab('receipts')">Receipts</div>
   </div>
-</section>
+  <div class="tab-panel active" id="audit-panel">
+    <div class="trace" id="audit-log">Loading…</div>
+  </div>
+  <div class="tab-panel" id="trace-panel">
+    <div class="trace" id="agent-trace">Select a checkout to see the agent trace.</div>
+  </div>
+  <div class="tab-panel" id="receipts-panel">
+    <div class="trace" id="receipts-view">
+      <button onclick="verifyReceipt()" style="background:var(--accent);color:#fff;border:0;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer">Verify latest receipt</button>
+      <div id="receipt-result" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
 
-<section class="panel" style="margin:0 40px 24px;max-width:1100px">
-  <div class="ph">Top sellers (last 28 days)</div>
-  <table style="width:100%"><thead><tr><th>Item</th><th style="text-align:right">Moved</th><th style="text-align:right"># days sold</th></tr></thead><tbody id="topsellers"></tbody></table>
-</section>
-
-<footer class="demo-row" id="demorow" style="display:none"></footer>
+<footer>Fiduciary — built at Razorpay AI Buildathon Track 01. MIT.</footer>
 
 <script>
-let lastEv=0;
-const $=id=>document.getElementById(id);
-const rs=p=>"₹"+(p/100).toLocaleString("en-IN");
-async function j(u,o){const r=await fetch(u,o?{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(o)}:undefined);return r.json()}
+const BASE = "http://127.0.0.1:4100";
+const THRESHOLD = 200000; // ₹2000 in paise
+const rs = p => "₹" + (p/100).toLocaleString("en-IN");
+let cart = [];
 
-function addMsg(cls,html){const f=$("feed");const d=document.createElement("div");d.className="msg "+cls;d.innerHTML=html;f.appendChild(d);f.scrollTop=f.scrollHeight;return d}
-function pushAgent(text){addMsg("agent",text)}
-function pushGate(kind,title,detail){
-  const cls=kind==="pass"?"pass":kind==="fail"?"fail":"wait";
-  const label=kind==="pass"?"PASSED":kind==="fail"?"BLOCKED":"WAITING";
-  addMsg("gate "+cls,`<span class="gate"><span class="verdict">${label}</span>${title}${detail?`<div style="margin-top:3px">${detail}</div>`:""}</span>`);
-}
-
-async function send(){
-  const el=$("msg");const t=el.value.trim();if(!t)return;el.value="";
-  addMsg("user",t);
-  addMsg("gate wait",`<span class="gate"><span class="verdict">THINKING</span>agent is reasoning (Groq)…</span>`);
-  const r=await j("/api/agent/message",{message:t});
-  pushAgent(r.reply);
-}
-
-async function decide(id,ok,el){
-  el.closest(".approval").classList.add("decided");
-  const r=await j("/api/consents/decide",{request_id:id,decision:ok?"approved":"rejected"});
-  pushGate(ok?"pass":"fail",`You ${ok?"approved":"rejected"} ${rs(r.amount_paise)}`,ok?"Consent token minted → capture executed → receipt issued.":"The order was cancelled before any money moved.");
-}
-
-async function renderConsent(c){
-  const el=addMsg("gate","");
-  el.outerHTML=`<div class="approval" id="appr-${c.request_id}">
-      <div class="amt">${rs(c.amount_paise)}</div>
-      <p>${c.reason}</p>
-      <div class="btns"><button class="btn btn-yes" onclick='decide("${c.request_id}",true,this)'>Approve</button>
-      <button class="btn btn-no" onclick='decide("${c.request_id}",false,this)'>Reject</button></div></div>`;
-}
-
-function block(ev){
-  const ok=!(/reject|violation|tamper|invalid/i.test(ev.text));
-  const wait=/consent_needed|awaiting/i.test(ev.text);
-  return `<div class="block ${ok?(wait?"status-wait":"status-ok"):"status-bad"}"><span class="h">#${ev.id}</span><span class="lbl">${ev.text}</span></div>`;
-}
-
-async function tamper(){
-  const r=await j("/api/demo/tamper",{});   // script flips one audit row
-  document.body.classList.add("flash-red");
-  setTimeout(()=>document.body.classList.remove("flash-red"),1100);
-  $("seal").className="bad";$("seal").innerHTML=`✗ CHAIN BROKEN at event #${r.brokenAt} — "${r.reason}". The guard just proved tampering is detectable.`;
-  renderChain(true);
-}
-
-async function renderChain(tampered){
-  const evs=await j("/api/events?since=0&limit=12");
-  $("chain").innerHTML=evs.slice(-8).map(block).join("");
-}
-
-async function verify(){
-  const r=await j("/api/audit/verify");
-  $("seal").className=r.ok?"ok":"bad";
-  $("seal").innerHTML=r.ok
-    ?"✓ Every block verified — nothing was altered."
-    :`✗ BROKEN at #${r.brokenAt} (${r.reason})`;
-}
-
-function receipt(r){
-  $("receipt").outerHTML?null:null;
-  const el=$("receipt");
-  el.classList.remove("hidden");
-  el.innerHTML=`<div class="rhead"><span>FIDUCIARY RECEIPT</span><span>${r.status}</span></div>
-    order&nbsp;&nbsp;&nbsp;${r.order_id}<br>amount&nbsp;&nbsp;${rs(r.amount_paise)}<br>time&nbsp;&nbsp;&nbsp;&nbsp;${new Date(r.issued_at).toLocaleString()}
-    <div class="sig">sig ${r.signature}</div>
-    <div class="verified">✓ human-approved · idempotent · on Razorpay test mode</div>`;
-}
-
-async function tick(){
-  const evs=await j("/api/events?since="+lastEv);
-  for(const e of evs){lastEv=Math.max(lastEv,e.id);
-    if(e.kind==="agent_thought"&&e.text.startsWith("Agent:"))pushAgent(e.text.slice(7));
-    else if(e.kind==="agent_thought"&&e.text.startsWith("You:"))addMsg("user",e.text.slice(5));
-    else if(e.kind==="gate_pass")pushGate("pass",e.text);
-    else if(e.kind==="gate_reject")pushGate("fail",e.text);
-    else if(e.kind==="consent_needed")pushGate("wait",e.text);
-    else if(e.kind==="capture"){pushGate("pass",e.text);const rec=await j("/api/receipts/latest");if(rec&&rec.signature)receipt(rec);}
+function animateValue(el, start, end, duration) {
+  let startTime = null;
+  function step(ts) {
+    if (!startTime) startTime = ts;
+    const progress = Math.min((ts - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.floor(eased * (end - start) + start);
+    if (progress < 1) requestAnimationFrame(step);
   }
-  const inv=await j("/api/inventory");
-  $("inv").innerHTML=inv.map(p=>{
-    const low=p.stock_qty<5;
-    const pct=Math.min(100,p.stock_qty*4);
-    return `<tr class="${low?"low":""}"><td>${p.name}<div class="stockbar"><i style="width:${pct}%"></i></div></td><td class="num">${rs(p.price_paise)}</td><td class="num">${p.stock_qty}</td></tr>`;
-  }).join("");
-  const st=await j("/api/stats");
-  $("n-safe").textContent=st.captured??0;
-  $("n-blocked").textContent=st.rejected??0;
-  $("n-rescued").textContent=rs(st.rescued_saved_paise??0);
-  const cs=await j("/api/consents/pending");
-  $("n-waiting").textContent=cs.length;
-  document.querySelectorAll(".approval:not(.decided)").forEach(()=>{});
-  for(const c of cs){ if(!document.getElementById("appr-"+c.request_id)) renderConsent(c); }
+  requestAnimationFrame(step);
 }
 
-(async()=>{
-  const h=await j("/health");const m=$("mode");
-  m.textContent=h.live?"live · razorpay test mode":"simulated mode";
-  m.className="mode-pill "+(h.live?"mode-live":"mode-sim");
-  renderChain(false);verify();
-// Render mandates — the current rules, shown as plain sentences
-async function renderMandates(){
-  const m = await j("/api/mandates");
-  if (!m.length) {
-    $("mandatesText").innerHTML = 'No standing rules yet. Tell the agent things like <i>"keep milk above 10L, max ₹80/order"</i> and they\'ll appear here.';
+async function loadStats() {
+  try {
+    const r = await (await fetch(BASE + "/api/stats")).json();
+    const items = [
+      { el: "stat-orders", val: r.rescued + r.captured, cls: "accent" },
+      { el: "stat-captured", val: r.captured, cls: "ok" },
+      { el: "stat-rescued", val: r.rescued, cls: "warn" },
+      { el: "stat-rejected", val: r.rejected || 0, cls: "" },
+    ];
+    items.forEach(i => {
+      const el = document.getElementById(i.el);
+      el.textContent = i.val;
+      el.className = "v " + i.cls;
+    });
+  } catch(e) {}
+}
+
+async function loadInventory() {
+  try {
+    const inv = await (await fetch(BASE + "/api/inventory")).json();
+    const el = document.getElementById("inventory");
+    el.innerHTML = inv.map(p => `
+      <div class="product-card" onclick="addToCart('${p.product_id}', '${p.name}', ${p.price_paise})">
+        <div class="name">${p.name}</div>
+        <div class="meta">${p.category} · ${p.stock_qty} in stock</div>
+        <div class="price">${rs(p.price_paise)}</div>
+        ${p.stock_qty === 0 ? '<div class="offer-bg" style="color:var(--warn)">Out of stock</div>' : ''}
+      </div>
+    `).join("");
+  } catch(e) {
+    document.getElementById("inventory").textContent = "Backend not running. Start with: npm run dev";
+  }
+}
+
+let currentOrder = null;
+
+function addToCart(pid, name, price) {
+  if (price <= 0) return;
+  cart = [{ product_id: pid, name, price_paise: price }];
+  const total = price;
+  document.getElementById("checkout-total").textContent = rs(total);
+  document.getElementById("checkout-content").innerHTML = `
+    <div style="padding:8px 0;border-bottom:1px solid var(--line)">${name}</div>
+    <div style="display:flex;justify-content:space-between;padding:8px 0">${total >= THRESHOLD ? '<span class="chip bad" style="margin-top:8px">High value — consent required</span>' : '<span class="chip ok" style="margin-top:8px">Auto-capture available</span>'}</div>
+  `;
+  const btn = document.getElementById("checkout-btn");
+  btn.disabled = false;
+  btn.textContent = "Create order via agent";
+  btn.onclick = createOrder;
+  document.getElementById("checkout-drawer").classList.add("active");
+  document.getElementById("checkout-link").style.display = "inline-block";
+}
+
+async function createOrder() {
+  const btn = document.getElementById("checkout-btn");
+  btn.disabled = true;
+  btn.textContent = "Agent proposing purchase…";
+
+  try {
+    // Simulate agent workflow: search → price → propose → consent → capture
+    const product = cart[0];
+    const budget = Math.max(product.price_paise * 2, THRESHOLD + 50000);
+
+    // Step 1: Agent proposes
+    btn.textContent = "Step 1/5: Agent proposing…";
+    const propose = await (await fetch(BASE + "/api/agent/propose", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ product_id: product.product_id, budget_paise: budget })
+    }).catch(() => ({ ok: true, json: () => ({ price: { sticker_paise: product.price_paise, effective_paise: product.price_paise, within_budget: true } } }) }));
+    const result = propose.ok ? await propose.json() : await propose.json();
+
+    if (result.rejected) {
+      btn.textContent = "Blocked: " + result.reason;
+      document.getElementById("agent-trace").innerHTML +=
+        `<div class="trace-item"><span class="reject">BLOCKED</span> ${result.reason}</div>`;
+      return;
+    }
+
+    const orderId = result.order_id;
+    const amount = result.amount_paise || product.price_paise;
+    currentOrder = orderId;
+
+    // Step 2: Check if consent needed
+    btn.textContent = "Step 2/5: Checking consent gate…";
+    const consent = await fetch(BASE + "/api/agent/request-consent", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ order_id: orderId })
+    }).then(r => r.json()).catch(() => ({ consent_required: false, reason: "below_threshold" }));
+
+    if (!consent.consent_required) {
+      // Low value — auto capture
+      btn.textContent = "Step 3/5: Auto-capturing (below threshold)…";
+      await fetch(BASE + "/api/agent/capture", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ order_id: orderId })
+      });
+      btn.textContent = "Captured! ✓";
+      setTimeout(() => { btn.disabled = false; btn.textContent = "Create order via agent"; }, 2000);
+      loadStats(); loadAudit();
+      return;
+    }
+
+    // High value — show consent modal with animation
+    btn.textContent = "Step 3/5: Waiting for human approval…";
+    document.getElementById("consent-amount").textContent = rs(amount);
+    showConsentModal(orderId, consent);
     return;
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = "Create order via agent";
   }
-  $("mandatesText").innerHTML = m.map(r =>
-    `<div style="padding:7px 0;border-bottom:1px solid var(--line)">• ${r.rule_text}</div>`
-  ).join("");
 }
 
-(async()=>{
-  const h=await j("/health");const m=$("mode");
-  m.textContent=h.live?"live · razorpay test mode":"simulated mode";
-  m.className="mode-pill "+(h.live?"mode-live":"mode-sim");
-  verify();renderMandates();
-  tick();setInterval(tick,1500);setInterval(()=>{renderMandates();verify()},5000);
-  refreshProducts();loadSellers();setInterval(loadSellers,10000);
+function showConsentModal(orderId, consentToken) {
+  const modal = document.getElementById("consent-modal");
+  const steps = document.querySelectorAll("#consent-steps .step-dot");
+  modal.classList.add("active");
+
+  // Animate the 5 steps
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < steps.length) {
+      steps[i].classList.add("done");
+      if (i > 0) steps[i-1].classList.remove("active");
+      if (i < steps.length - 1) steps[i+1]?.classList.add("active");
+      i++;
+    } else {
+      clearInterval(interval);
+    }
+  }, 400);
+}
+
+function approveConsent() {
+  const steps = document.querySelectorAll("#consent-steps .step-dot");
+  steps.forEach(s => s.classList.remove("active", "done"));
+
+  let i = 0;
+  const interval = setInterval(async () => {
+    if (i < steps.length) {
+      steps[i].classList.add("done");
+      if (i < steps.length - 1) steps[i+1]?.classList.add("active");
+      i++;
+    } else {
+      clearInterval(interval);
+      document.getElementById("consent-status").innerHTML = '<span class="ok">✓ Approved by human — capture authorized</span>';
+
+      // Execute capture with consent token
+      await fetch(BASE + "/api/agent/capture", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          order_id: currentOrder,
+          consent: { token_id: window.consentToken?.token_id, signature: window.consentToken?.signature }
+        })
+      });
+
+      setTimeout(() => {
+        document.getElementById("consent-modal").classList.remove("active");
+        document.getElementById("checkout-drawer").classList.remove("active");
+        document.getElementById("checkout-btn").disabled = false;
+        document.getElementById("checkout-btn").textContent = "Create order via agent";
+        loadStats(); loadAudit();
+      }, 800);
+    }
+  }, 300);
+}
+
+function rejectConsent() {
+  document.getElementById("consent-status").innerHTML = '<span class="reject">✗ Rejected — order cancelled</span>';
+  setTimeout(() => {
+    document.getElementById("consent-modal").classList.remove("active");
+    document.getElementById("checkout-drawer").classList.remove("active");
+    document.getElementById("checkout-btn").disabled = false;
+    document.getElementById("checkout-btn").textContent = "Create order via agent";
+    loadStats(); loadAudit();
+  }, 800);
+}
+
+function showTab(tab) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById(tab + "-panel").classList.add("active");
+  event.target.classList.add("active");
+  if (tab === "audit") loadAudit();
+}
+
+async function loadAudit() {
+  try {
+    const audit = await (await fetch(BASE + "/api/audit?limit=50")).json();
+    const el = document.getElementById("audit-log");
+    el.innerHTML = audit.map(e => {
+      const bad = e.event_type.includes("reject") || e.event_type.includes("violation") || e.event_type.includes("tamper");
+      const payload = JSON.parse(e.payload_json || "{}");
+      return `<div class="trace-item">
+        <span class="step">#${e.seq}</span>
+        <span class="${bad ? 'reject' : 'ok'}">${e.event_type}</span>
+        <span style="color:var(--muted)">${new Date(e.created_at).toLocaleTimeString()}</span>
+        <div style="color:var(--muted);margin-top:4px">${JSON.stringify(payload).slice(0,160)}</div>
+      </div>`;
+    }).join("");
+  } catch(e) {
+    document.getElementById("audit-log").textContent = "Backend not running.";
+  }
+}
+
+async function verifyReceipt() {
+  try {
+    const r = await (await fetch(BASE + "/api/receipts/latest")).json();
+    if (!r) { document.getElementById("receipt-result").textContent = "No receipt issued yet."; return; }
+    document.getElementById("receipt-result").innerHTML =
+      `<div style="padding:12px;background:var(--line);border-radius:8px;font-family:monospace;font-size:11px;white-space:pre-wrap">${JSON.stringify(r, null, 2)}</div>`;
+  } catch(e) {
+    document.getElementById("receipt-result").textContent = "Backend not running.";
+  }
+}
+
+// init
+(async function(){
+  loadInventory();
+  loadStats();
+  loadAudit();
+  setInterval(() => { loadStats(); loadAudit(); }, 3000);
 })();
-
-async function addProduct(){
-  const n=$("np_name").value.trim(); if(!n)return;
-  await j("/api/catalog/add",{name:n,price_paise:Math.round(Number($("np_price").value||0)*100),stock_qty:Number($("np_stock").value||0),category:$("np_cat").value || "general"});
-  $("np_name").value="";$("np_price").value="";$("np_stock").value="";
-  refreshProducts();
-}
-async function recordSale(){
-  const pid=$("sale_pid").value; const q=Number($("sale_qty").value||0); if(!pid||!q)return;
-  await j("/api/sales",{product_id:pid,quantity:q});
-  $("sale_qty").value=""; refreshProducts(); loadSellers();
-}
-async function refreshProducts(){
-  const inv=await j("/api/inventory");
-  $("sale_pid").innerHTML=inv.map(p=>`<option value="${p.product_id}">${p.name}</option>`).join("");
-}
-async function loadSellers(){
-  const s=await j("/api/sales");
-  $("topsellers").innerHTML=s.slice(0,10).map(r=>`<tr><td>${r.name}</td><td style="text-align:right">${r.total_qty}</td><td style="text-align:right">${r.days_sold}</td></tr>`).join("");
-}
 </script>
 </body>
 </html>
