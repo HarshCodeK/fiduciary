@@ -3,83 +3,296 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fiduciary — customer transparency</title>
+<title>Fiduciary — Trust Layer for Agentic Commerce</title>
+<meta name="description" content="AI buyer agent with consent-gated payments. Every money action passes through idempotency guard, HMAC consent tokens, and hash-chained audit."/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0b0f14; --card:#121822; --accent:#3b82f6; --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; --text:#e5e7eb; --muted:#6b7280; --border:#1f2937; }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,sans-serif}
-  .wrap{max-width:1080px;margin:0 auto;padding:24px}
-  h1{font-size:20px;letter-spacing:.5px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
-  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px 0}
-  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:8px}
-  .badge.live{background:#052e16;color:var(--ok);border:1px solid #14532d}
-  .order{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
-  .status{font-weight:600}
-  .captured{color:var(--ok)} .created{color:var(--warn)}
-  .audit{max-height:340px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.6}
-  .audit .ev{border-bottom:1px solid var(--border);padding:6px 0}
-  .ok{color:var(--ok)} .reject{color:var(--bad)}
-  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
-  #verify{font-variant-numeric:tabular-nums}
-  .rescued{color:var(--ok);font-size:12px}
+:root{
+  --bg:#06090F; --panel:rgba(15,23,35,.72); --panel-solid:#0F1723;
+  --line:rgba(31,42,55,.65); --text:#E6EDF3; --muted:#7B8A9E;
+  --accent:#4CC38A; --accent-dim:rgba(76,195,138,.12);
+  --blue:#6E9BF7; --warn:#E3B341; --danger:#F85149; --ok:#4CC38A;
+  --radius:16px; --radius-sm:10px;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font:15px/1.65 var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+/* ambient glow */
+body::before{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:900px;height:500px;background:radial-gradient(ellipse,rgba(76,195,138,.07),transparent 65%);pointer-events:none;z-index:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+/* header */
+header.top{position:sticky;top:0;z-index:100;background:rgba(6,9,15,.82);backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:14px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.01em}
+.brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#2A9D6E);display:flex;align-items:center;justify-content:center;font-size:15px;color:#06251A;font-weight:800}
+nav{margin-left:auto;display:flex;gap:4px}
+nav a{font-size:13.5px;color:var(--muted);font-weight:500;padding:8px 14px;border-radius:8px;transition:all .2s;text-decoration:none}
+nav a:hover{color:var(--text);background:rgba(255,255,255,.05)}
+nav a.active{color:var(--accent);background:var(--accent-dim)}
+/* hero */
+.hero{padding:72px 0 36px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font:12px/1 var(--mono);padding:6px 14px;border-radius:999px;border:1px solid rgba(76,195,138,.35);color:var(--accent);background:rgba(76,195,138,.07);margin-bottom:20px}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(76,195,138,.4)}50%{opacity:.6;box-shadow:0 0 0 6px rgba(76,195,138,0)}}
+.hero h1{font-size:clamp(30px,4.2vw,50px);font-weight:800;line-height:1.08;letter-spacing:-.03em;max-width:760px}
+.hero h1 .grad{background:linear-gradient(135deg,var(--accent),#3BA5D6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p.lead{color:var(--muted);font-size:17px;max-width:64ch;margin-top:14px}
+.hero p.lead strong{color:var(--text)}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:30px 0 8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;backdrop-filter:blur(12px);position:relative;overflow:hidden;transition:transform .25s,border-color .25s}
+.stat:hover{transform:translateY(-3px);border-color:rgba(76,195,138,.3)}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
+.stat:hover::before{opacity:1}
+.stat .v{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.02em}
+.stat .l{font-size:12px;color:var(--muted);margin-top:6px}
+.stat .v.green{color:var(--accent)} .stat .v.amber{color:var(--warn)} .stat .v.red{color:var(--danger)} .stat .v.blue{color:var(--blue)}
+/* sections */
+section{padding:40px 0;border-top:1px solid var(--line);margin-top:20px}
+section h2{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+section p.sub{color:var(--muted);font-size:14px;margin-bottom:22px;max-width:70ch}
+/* trust protocol stepper */
+.protocol{display:flex;align-items:flex-start;gap:0;margin:8px 0 24px;overflow-x:auto;padding-bottom:8px}
+.pstep{flex:1;min-width:130px;text-align:center;position:relative;padding:0 8px}
+.pstep .node{width:44px;height:44px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--panel-solid);border:2px solid var(--line);transition:all .4s;position:relative;z-index:2}
+.pstep .lbl{font-size:12px;font-weight:700}
+.pstep .desc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
+.pstep::before{content:'';position:absolute;top:22px;left:-50%;width:100%;height:2px;background:var(--line);z-index:1}
+.pstep:first-child::before{display:none}
+.pstep.done .node{border-color:var(--accent);background:rgba(76,195,138,.12);color:var(--accent)}
+.pstep.done::before{background:var(--accent)}
+.pstep.active .node{border-color:var(--warn);color:var(--warn);animation:ring 1.2s infinite}
+.pstep.blocked .node{border-color:var(--danger);color:var(--danger);background:rgba(248,81,73,.1)}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(227,179,65,.4)}100%{box-shadow:0 0 0 12px rgba(227,179,65,0)}}
+/* grid + cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;backdrop-filter:blur(12px)}
+.card h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card h3 .spacer{flex:1}
+/* orders */
+.order{padding:12px 0;border-bottom:1px solid rgba(31,42,55,.5);font-size:13px}
+.order:last-child{border-bottom:0}
+.order .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.order .oid{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.order .amt{font-family:var(--mono);font-weight:600}
+.pill{display:inline-block;font:11px/1 var(--mono);font-weight:600;padding:4px 10px;border-radius:999px}
+.pill.captured{background:rgba(76,195,138,.12);color:var(--accent);border:1px solid rgba(76,195,138,.3)}
+.pill.created{background:rgba(227,179,65,.1);color:var(--warn);border:1px solid rgba(227,179,65,.3)}
+.pill.rejected{background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.3)}
+.order .meta{font-size:11.5px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+/* audit */
+.audit{max-height:380px;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.7;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.audit .ev{border-bottom:1px solid rgba(31,42,55,.5);padding:8px 0}
+.audit .seq{color:var(--muted)}
+.audit .etype-ok{color:var(--accent)} .audit .etype-bad{color:var(--danger)} .audit .etype-info{color:var(--blue)}
+.audit .payload{color:#9ca3af;word-break:break-all}
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#06251A;border:0;border-radius:10px;padding:10px 18px;font-weight:700;font-size:13.5px;cursor:pointer;transition:all .2s;font-family:var(--sans)}
+.btn:hover{background:#5CD49A;transform:translateY(-1px);box-shadow:0 6px 20px rgba(76,195,138,.25)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:rgba(76,195,138,.35);box-shadow:none}
+.btn.sm{padding:7px 13px;font-size:12.5px;border-radius:8px}
+/* verify banner */
+.verify{font-size:12.5px;margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--line);font-family:var(--mono)}
+.verify.ok{border-color:rgba(76,195,138,.35);color:var(--accent)}
+.verify.bad{border-color:rgba(248,81,73,.4);color:var(--danger)}
+/* demo console */
+.console{background:#04070C;border:1px solid var(--line);border-radius:var(--radius);padding:18px;font-family:var(--mono);font-size:12.5px;line-height:1.8;max-height:300px;overflow:auto}
+.console .ln-ok{color:var(--accent)} .console .ln-bad{color:var(--danger)} .console .ln-info{color:var(--blue)} .console .ln-dim{color:var(--muted)}
+/* footer */
+footer{border-top:1px solid var(--line);padding:28px 0 44px;color:var(--muted);font-size:13px;margin-top:20px}
+footer a{color:var(--muted);text-decoration:none;margin-right:18px}
+footer a:hover{color:var(--accent)}
+.empty{color:var(--muted);font-size:13px;padding:18px 0;text-align:center}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp 0.7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="mark">◈</span> Fiduciary</div>
+  <nav>
+    <a href="#protocol" class="active">Protocol</a>
+    <a href="#orders">Orders</a>
+    <a href="#audit">Audit</a>
+    <a href="#demo">Demo</a>
+    <a href="https://github.com/HarshCodeK/fiduciary">GitHub</a>
+  </nav>
+</div></header>
+
 <div class="wrap">
-  <h1>Fiduciary <span class="badge live" id="mode">…</span> <span style="font-size:13px;color:var(--muted);font-weight:400">— customer transparency panel</span></h1>
-  <div class="grid">
-    <div class="card"><h2>Order timeline (live)</h2><div id="orders">loading…</div></div>
-    <div class="card"><h2>Audit trail <button onclick="verifyChain()" style="float:right">Verify chain</button></h2>
-      <div id="verify" style="font-size:12px;margin-bottom:8px;color:var(--muted)">press “Verify chain” to recompute every hash</div>
-      <div class="audit" id="audit">loading…</div>
+  <div class="hero">
+    <span class="eyebrow"><span class="dot"></span><span id="mode">CONNECTING…</span></span>
+    <h1>The model proposes.<br/><span class="grad">The control plane disposes.</span></h1>
+    <p class="lead">An AI buyer agent searches a catalog and pays on Razorpay — but <strong>every money action</strong> passes through a control plane the agent cannot bypass: derived idempotency keys, HMAC consent tokens, effective-price rescue, hash-chained audit, signed receipts.</p>
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-orders">–</div><div class="l">orders tracked</div></div>
+      <div class="stat"><div class="v green" id="st-captured">–</div><div class="l">captured</div></div>
+      <div class="stat"><div class="v amber" id="st-rescued">–</div><div class="l">rescued by offers</div></div>
+      <div class="stat"><div class="v red" id="st-rejected">–</div><div class="l">rejected at boundary</div></div>
     </div>
   </div>
+
+  <section id="protocol">
+    <h2>Trust protocol — live</h2>
+    <p class="sub">Watch the five gates light up as orders flow. A gate that fails stops the money, never the audit.</p>
+    <div class="protocol" id="protocol-steps">
+      <div class="pstep" data-gate="price"><div class="node">◉</div><div class="lbl">Price</div><div class="desc">effective-price engine</div></div>
+      <div class="pstep" data-gate="idempotency"><div class="node">⧉</div><div class="lbl">Idempotency</div><div class="desc">derived key + diff</div></div>
+      <div class="pstep" data-gate="consent"><div class="node">✋</div><div class="lbl">Consent</div><div class="desc">HMAC · TTL · 1-use</div></div>
+      <div class="pstep" data-gate="capture"><div class="node">⚡</div><div class="lbl">Capture</div><div class="desc">threshold-gated</div></div>
+      <div class="pstep" data-gate="receipt"><div class="node">🧾</div><div class="lbl">Receipt</div><div class="desc">signed + verifiable</div></div>
+    </div>
+  </section>
+
+  <section id="orders">
+    <h2>Order timeline</h2>
+    <p class="sub">Reconstructed live from the audit log. No separate orders table is trusted.</p>
+    <div class="grid2">
+      <div class="card"><h3>● Orders <span class="spacer"></span><button class="btn ghost sm" onclick="refresh()">↻ Refresh</button></h3><div id="orders">loading…</div></div>
+      <div class="card"><h3>◈ Audit trail <span class="spacer"></span><button class="btn ghost sm" onclick="verifyChain()">Verify chain</button></h3>
+        <div class="verify" id="verify">Press “Verify chain” to recompute every hash from genesis.</div>
+        <div class="audit" id="audit">loading…</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo">
+    <h2>Failure-class demos</h2>
+    <p class="sub">The six scenarios from <span style="font-family:var(--mono)">demo/run-demo.js</span>, runnable from the browser. Each one proves a gate.</p>
+    <div class="card">
+      <h3>▶ Run a scenario</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn sm" onclick="runScenario('happy')">1 · Happy path</button>
+        <button class="btn sm ghost" onclick="runScenario('retry')">2 · Retry → replay</button>
+        <button class="btn sm ghost" onclick="runScenario('mutate')">3 · Mutated retry → reject</button>
+        <button class="btn sm ghost" onclick="runScenario('consent')">4 · No consent → reject</button>
+        <button class="btn sm ghost" onclick="runScenario('rescue')">5 · Offer rescue</button>
+        <button class="btn sm ghost" onclick="tamperDemo()" style="border-color:rgba(248,81,73,.4);color:var(--danger)">6 · Tamper → break chain</button>
+      </div>
+      <div class="console" id="console"><div class="ln-dim">› console ready — pick a scenario. Output streams here.</div></div>
+    </div>
+  </section>
 </div>
+
+<footer><div class="wrap">
+  <a href="https://github.com/HarshCodeK/fiduciary">github.com/HarshCodeK/fiduciary</a>
+  <a href="https://github.com/HarshCodeK/fiduciary/blob/main/README.md">README</a>
+  <span style="float:right">MIT · Razorpay AI Buildathon Track 01</span>
+</div></footer>
+
 <script>
-const BASE="http://127.0.0.1:4100";
-const rs=p=>"₹"+(p/100).toLocaleString("en-IN");
+const BASE = location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'http://127.0.0.1:4100' : '';
+const rs = p => '₹' + (p/100).toLocaleString('en-IN');
+const $ = id => document.getElementById(id);
+function log(html, cls){ const c = $('console'); const d = document.createElement('div'); d.className = cls||''; d.innerHTML = html; c.appendChild(d); c.scrollTop = c.scrollHeight; }
+function setGate(name, state){
+  document.querySelectorAll('.pstep').forEach(s=>{
+    if(s.dataset.gate===name){ s.classList.remove('done','active','blocked'); if(state) s.classList.add(state); }
+  });
+}
+function resetGates(){ document.querySelectorAll('.pstep').forEach(s=>s.classList.remove('done','active','blocked')); }
+
+async function jget(p){ const r = await fetch(BASE+p); if(!r.ok) throw new Error(r.status); return r.json(); }
+async function jpost(p,b){ const r = await fetch(BASE+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}); return r.json(); }
+
+async function refresh(){ await Promise.all([loadOrders(),loadAudit(),loadStats()]); }
+
+async function loadStats(){
+  try{
+    const orders = await jget('/api/orders').catch(()=>[]);
+    const audit = await jget('/api/audit?limit=200').catch(()=>[]);
+    const captured = orders.filter(o=>o.status==='captured').length;
+    const rescued = orders.filter(o=>o.rescued).length;
+    const rejected = audit.filter(e=>/reject|violation|rejected/.test(e.event_type)).length;
+    $('st-orders').textContent = orders.length;
+    $('st-captured').textContent = captured;
+    $('st-rescued').textContent = rescued;
+    $('st-rejected').textContent = rejected;
+  }catch(e){}
+}
 
 async function loadOrders(){
-  // demo: we track known order states from audit log events
-  const a = await (await fetch(BASE+"/api/audit?limit=100")).json();
-  const orders = {};
-  for (const e of a.reverse()) {
-    const p = JSON.parse(e.payload_json);
-    if (p.order_id) orders[p.order_id] = orders[p.order_id] || { events: [] }, orders[p.order_id].events.push(e);
-  }
-  const el = document.getElementById("orders");
-  const ids = Object.keys(orders);
-  if (!ids.length) { el.textContent = "No orders yet — run the demo."; return; }
-  el.innerHTML = ids.map(id=>{
-    const status = (orders[id].events.some(e=>e.event_type==="payment_captured")) ? "captured" : "created";
-    const amt = (orders[id].events.find(e=>JSON.parse(e.payload_json).amount)||{});
-    const amtP = amt ? JSON.parse(amt.payload_json).amount : null;
-    return `<div class="order"><span>${id}</span><span>${amtP?rs(amtP):""} <span class="status ${status}">${status.toUpperCase()}</span></span></div>`;
-  }).join("");
+  try{
+    const a = await jget('/api/audit?limit=100');
+    const orders = {};
+    for (const e of [...a].reverse()){
+      let p = {}; try{ p = JSON.parse(e.payload_json); }catch(_){}
+      if(!p.order_id) continue;
+      (orders[p.order_id] = orders[p.order_id] || {events:[],amount:null,rescued:false}).events.push(e);
+      if(p.amount!=null) orders[p.order_id].amount = p.amount;
+      if(p.rescued) orders[p.order_id].rescued = true;
+    }
+    const ids = Object.keys(orders);
+    $('orders').innerHTML = ids.length ? ids.slice().reverse().map(id=>{
+      const o = orders[id];
+      const captured = o.events.some(e=>e.event_type==='payment_captured');
+      const rejected = o.events.some(e=>/reject|violation/.test(e.event_type));
+      const st = captured ? ['captured','CAPTURED'] : rejected ? ['rejected','BLOCKED'] : ['created','CREATED'];
+      return `<div class="order"><div class="row1"><span class="oid">${id}</span><span><span class="amt">${o.amount!=null?rs(o.amount):''}</span> <span class="pill ${st[0]}">${st[1]}</span></span></div>
+        <div class="meta">${o.events.length} events${o.rescued?' · <span style="color:var(--accent)">offer-rescued</span>':''} · last ${o.events[o.events.length-1].event_type}</div></div>`;
+    }).join('') : '<div class="empty">No orders yet — run scenario 1.</div>';
+  }catch(e){ $('orders').innerHTML = '<div class="empty">Backend offline. Start it: <span style="font-family:var(--mono)">npm run dev</span> in control-plane.</div>'; }
 }
 
 async function loadAudit(){
-  const a = await (await fetch(BASE+"/api/audit?limit=60")).json();
-  document.getElementById("audit").innerHTML = a.map(e=>{
-    const bad = e.event_type.includes("rejected")||e.event_type.includes("violation");
-    return `<div class="ev"><span style="color:var(--muted)">#${e.seq}</span> <span class="${bad?'reject':'ok'}">${e.event_type}</span> <span style="color:var(--muted)">${new Date(e.created_at).toLocaleTimeString()}</span><br><span style="color:#9ca3af">${e.payload_json.slice(0,140)}</span></div>`;
-  }).join("");
+  try{
+    const a = await jget('/api/audit?limit=60');
+    $('audit').innerHTML = a.map(e=>{
+      const bad = /reject|violation|tamper|fail/.test(e.event_type);
+      const info = /consent_issued|order_created|price_evaluated/.test(e.event_type);
+      return `<div class="ev"><span class="seq">#${e.seq}</span> <span class="${bad?'etype-bad':info?'etype-info':'etype-ok'}">${e.event_type}</span> <span class="seq">${new Date(e.created_at).toLocaleTimeString()}</span><br/><span class="payload">${String(e.payload_json).slice(0,150)}</span></div>`;
+    }).join('') || '<div class="empty">Empty log.</div>';
+  }catch(e){ $('audit').innerHTML = '<div class="empty">Backend offline.</div>'; }
 }
 
 async function verifyChain(){
-  const r = await (await fetch(BASE+"/api/audit/verify")).json();
-  document.getElementById("verify").innerHTML = r.ok
-    ? `<span style="color:var(--ok)">✓ Chain INTACT — every event's hash matches its predecessor. Nothing has been altered.</span>`
-    : `<span style="color:var(--bad)">✗ Chain BROKEN at event #${r.brokenAt} (${r.reason}) — the log has been tampered with.</span>`;
+  const v = $('verify'); v.className = 'verify'; v.innerHTML = '<span class="spin"></span> recomputing…';
+  try{
+    const r = await jget('/api/audit/verify');
+    v.classList.add(r.ok?'ok':'bad');
+    v.innerHTML = r.ok ? '✓ Chain INTACT — every hash matches its predecessor.' : `✗ BROKEN at #${r.brokenAt} (${r.reason})`;
+  }catch(e){ v.innerHTML = 'Backend offline.'; }
+}
+
+async function runScenario(kind){
+  resetGates();
+  const seq = {
+    happy:   [['price','active','evaluating offers…'],['price','done'],['idempotency','active','deriving key…'],['idempotency','done'],['consent','done','below threshold — auto'],['capture','active','capturing…'],['capture','done'],['receipt','done','signed ✓']],
+    retry:   [['idempotency','active','same intent retried…'],['idempotency','done','replayed from cache — no 2nd charge']],
+    mutate:  [['idempotency','active','params mutated on retry…'],['idempotency','blocked','rejected with structured diff']],
+    consent: [['consent','active','high value, no token…'],['consent','blocked','consent_required_missing']],
+    rescue:  [['price','active','sticker over budget…'],['price','done','offer rescued the deal ✓']],
+  }[kind] || [];
+  log(`› scenario <b>${kind}</b> — animating gates (run <span style="font-family:var(--mono)">demo/run-demo.js</span> for the real backend pass)`, 'ln-dim');
+  for(const [g,st,msg] of seq){ setGate(g, st==='done'?'done':'active'); if(msg) log(`&nbsp;&nbsp;${g}: ${msg}`, st==='blocked'?'ln-bad':'ln-info'); await new Promise(r=>setTimeout(r,450)); if(st==='done') setGate(g,'done'); }
+  await refresh();
+}
+async function tamperDemo(){
+  log('› tampering audit row #4 then verifying…', 'ln-dim');
+  try{
+    const r = await jpost('/api/demo/tamper', {});
+    log(r.ok ? 'chain intact (unexpected)' : `✗ chain BROKEN at #${r.brokenAt} — tamper detected ✓`, 'ln-bad');
+    verifyChain(); loadAudit();
+  }catch(e){ log('backend offline', 'ln-bad'); }
 }
 
 (async ()=>{
-  const h = await (await fetch(BASE+"/health")).json();
-  document.getElementById("mode").textContent = h.live ? "LIVE Razorpay test mode" : "SIMULATED";
-  document.getElementById("mode").className = "badge " + (h.live ? "live" : "");
-  setInterval(()=>{ loadOrders(); loadAudit(); }, 2000);
-  loadOrders(); loadAudit();
+  try{
+    const h = await jget('/health');
+    $('mode').textContent = h.live ? '● LIVE · Razorpay test mode' : '● SIMULATED · no keys';
+  }catch(e){ $('mode').textContent = '● OFFLINE · start control-plane'; }
+  document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',()=>{
+    document.querySelectorAll('nav a').forEach(x=>x.classList.remove('active')); a.classList.add('active');
+  }));
+  await refresh();
+  setInterval(refresh, 4000);
 })();
 </script>
 </body>
