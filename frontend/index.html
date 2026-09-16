@@ -119,7 +119,10 @@ footer a:hover{color:var(--accent)}
   <div class="brand"><span class="mark">◈</span> Fiduciary</div>
   <nav>
     <a href="#protocol" class="active">Protocol</a>
+    <a href="#inbox">Inbox</a>
     <a href="#orders">Orders</a>
+    <a href="#replay">Replay</a>
+    <a href="#receipts">Receipts</a>
     <a href="#audit">Audit</a>
     <a href="#demo">Demo</a>
     <a href="https://github.com/HarshCodeK/fiduciary">GitHub</a>
@@ -151,6 +154,24 @@ footer a:hover{color:var(--accent)}
     </div>
   </section>
 
+  <section id="inbox">
+    <h2>Merchant approval inbox</h2>
+    <p class="sub">High-value captures require merchant approval. Approve or reject pending requests — the agent cannot bypass this gate.</p>
+    <div class="card">
+      <h3>● Pending requests <span class="spacer"></span><button class="btn ghost sm" onclick="loadInbox()">↻ Refresh</button></h3>
+      <div id="inbox-list">loading…</div>
+    </div>
+  </section>
+
+  <section id="replay">
+    <h2>Idempotency replay log</h2>
+    <p class="sub">Every idempotency guard decision is logged. Replays return cached responses — no second Razorpay charge.</p>
+    <div class="card">
+      <h3>⧉ Guard events <span class="spacer"></span><button class="btn ghost sm" onclick="loadReplay()">↻ Refresh</button></h3>
+      <div id="replay-list">loading…</div>
+    </div>
+  </section>
+
   <section id="orders">
     <h2>Order timeline</h2>
     <p class="sub">Reconstructed live from the audit log. No separate orders table is trusted.</p>
@@ -159,6 +180,25 @@ footer a:hover{color:var(--accent)}
       <div class="card"><h3>◈ Audit trail <span class="spacer"></span><button class="btn ghost sm" onclick="verifyChain()">Verify chain</button></h3>
         <div class="verify" id="verify">Press “Verify chain” to recompute every hash from genesis.</div>
         <div class="audit" id="audit">loading…</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="receipts">
+    <h2>Receipt verification</h2>
+    <p class="sub">Every capture produces a signed receipt. Verify any receipt's authenticity against the consent secret.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>🧾 Latest receipt <span class="spacer"></span><button class="btn ghost sm" onclick="loadReceipt()">↻ Refresh</button></h3>
+        <div id="receipt-latest">loading…</div>
+      </div>
+      <div class="card">
+        <h3>◈ Verify a receipt</h3>
+        <div style="margin-bottom:10px">
+          <textarea id="receipt-input" placeholder='Paste a receipt JSON here…' style="width:100%;height:100px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:var(--mono);font-size:12px;color:var(--text);resize:vertical"></textarea>
+        </div>
+        <button class="btn sm" onclick="verifyReceipt()">Verify signature</button>
+        <div id="receipt-verify-result" style="margin-top:10px"></div>
       </div>
     </div>
   </section>
@@ -261,6 +301,76 @@ async function verifyChain(){
   }catch(e){ v.innerHTML = 'Backend offline.'; }
 }
 
+async function loadInbox(){
+  try{
+    const reqs = await jget('/api/consents/pending');
+    if(!reqs.length){ $('inbox-list').innerHTML = '<div class="empty">No pending requests — all clear.</div>'; return; }
+    $('inbox-list').innerHTML = reqs.map(r => {
+      const amt = r.amount_paise != null ? rs(r.amount_paise) : '—';
+      return `<div class="order" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div><span class="oid">${r.request_id}</span><div class="meta">${amt} · ${r.reason || 'capture_payment'} · ${r.status}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm" onclick="decideInbox('${r.request_id}','approved')">Approve</button>
+          <button class="btn sm ghost" onclick="decideInbox('${r.request_id}','rejected')" style="border-color:rgba(248,81,73,.4);color:var(--danger)">Reject</button>
+        </div></div>`;
+    }).join('');
+  }catch(e){ $('inbox-list').innerHTML = '<div class="empty">Backend offline.</div>'; }
+}
+
+async function decideInbox(requestId, decision){
+  try{
+    const r = await jpost('/api/consents/decide', {request_id: requestId, decision});
+    log(`› merchant ${decision} request ${requestId}`, decision==='approved'?'ln-ok':'ln-bad');
+    if(r.capture_result) log(`  capture: ${JSON.stringify(r.capture_result).slice(0,120)}`, r.capture_result.captured?'ln-ok':'ln-bad');
+    await loadInbox();
+    await refresh();
+  }catch(e){ log('decision failed: ' + e.message, 'ln-bad'); }
+}
+
+async function loadReplay(){
+  try{
+    const a = await jget('/api/audit?limit=100');
+    const replayEvents = a.filter(e => /idempotency|replay|violation/.test(e.event_type));
+    if(!replayEvents.length){ $('replay-list').innerHTML = '<div class="empty">No idempotency events yet — run scenario 2 or 3.</div>'; return; }
+    $('replay-list').innerHTML = '<table class="hu" style="width:100%;font-size:13px"><thead><tr><th>#</th><th>Type</th><th>Time</th><th>Detail</th></tr></thead><tbody>' +
+      replayEvents.map(e => {
+        let p = {}; try{ p = JSON.parse(e.payload_json); }catch(_){}
+        const detail = p.key ? `key: ${p.key.slice(0,20)}…` : JSON.stringify(p).slice(0,100);
+        const cls = /violation/.test(e.event_type) ? 'ln-bad' : 'ln-info';
+        return `<tr><td class="seq">#${e.seq}</td><td><span class="${cls}">${e.event_type}</span></td><td class="seq">${new Date(e.created_at).toLocaleTimeString()}</td><td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${detail}</td></tr>`;
+      }).join('') + '</tbody></table>';
+  }catch(e){ $('replay-list').innerHTML = '<div class="empty">Backend offline.</div>'; }
+}
+
+async function loadReceipt(){
+  try{
+    const r = await jget('/api/receipts/latest');
+    if(!r){ $('receipt-latest').innerHTML = '<div class="empty">No receipts yet — complete a capture first.</div>'; return; }
+    $('receipt-latest').innerHTML = `<div style="font-family:var(--mono);font-size:12px;line-height:1.8">
+      <div><b>Order:</b> ${r.order_id || '—'}</div>
+      <div><b>Amount:</b> ${r.amount_paise != null ? rs(r.amount_paise) : '—'}</div>
+      <div><b>Status:</b> ${r.status || '—'}</div>
+      <div><b>Issued:</b> ${r.issued_at ? new Date(r.issued_at).toLocaleString() : '—'}</div>
+      <div style="margin-top:8px"><b>Signature:</b> <span style="color:var(--muted);word-break:break-all">${r.signature || '—'}</span></div>
+    </div>`;
+  }catch(e){ $('receipt-latest').innerHTML = '<div class="empty">Backend offline.</div>'; }
+}
+
+async function verifyReceipt(){
+  const input = $('receipt-input').value.trim();
+  const result = $('receipt-verify-result');
+  if(!input){ result.innerHTML = '<span class="verify bad">Paste a receipt JSON first.</span>'; return; }
+  try{
+    const receipt = JSON.parse(input);
+    const r = await jpost('/api/receipts/verify', receipt);
+    result.innerHTML = r.valid
+      ? '<span class="verify ok">✓ Signature VALID — receipt is authentic.</span>'
+      : '<span class="verify bad">✗ Signature INVALID — receipt may have been tampered.</span>';
+  }catch(e){
+    result.innerHTML = '<span class="verify bad">Invalid JSON — paste the full receipt object.</span>';
+  }
+}
+
 async function runScenario(kind){
   resetGates();
   const seq = {
@@ -292,7 +402,8 @@ async function tamperDemo(){
     document.querySelectorAll('nav a').forEach(x=>x.classList.remove('active')); a.classList.add('active');
   }));
   await refresh();
-  setInterval(refresh, 4000);
+  await Promise.all([loadInbox(), loadReplay(), loadReceipt()]);
+  setInterval(async () => { await refresh(); await Promise.all([loadInbox(), loadReplay()]); }, 4000);
 })();
 </script>
 </body>
